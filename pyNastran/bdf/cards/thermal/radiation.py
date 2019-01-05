@@ -27,6 +27,13 @@ class RADM(ThermalBC):
     """
     type = 'RADM'
 
+    @classmethod
+    def _init_from_empty(cls):
+        radmid = 2
+        absorb = 2.0
+        emissivity = 1.0
+        return RADM(radmid, absorb, emissivity, comment='')
+
     def __init__(self, radmid, absorb, emissivity, comment=''):
         ThermalBC.__init__(self)
         if comment:
@@ -44,9 +51,9 @@ class RADM(ThermalBC):
     def validate(self):
         assert self.radmid > 0, str(self)
         if self.absorb is not None:
-            assert 0. <= self.absorb <= 1.0, str(self)
-        for emissivityi in self.emissivity:
-            assert 0. <= emissivityi <= 1.0, str(self)
+            assert 0. <= self.absorb <= 1.0, 'absorb=%s\n%s' % (self.absorb, str(self))
+        for i, emissivityi in enumerate(self.emissivity):
+            assert 0. <= emissivityi <= 1.0, 'emissivity[%i]=%s\n%s' % (i, emissivityi, str(self))
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -115,6 +122,14 @@ class RADBC(ThermalBC):
     conditions
     """
     type = 'RADBC'
+
+    @classmethod
+    def _init_from_empty(cls):
+        nodamb = 1
+        famb = 1.0
+        cntrlnd = 10
+        eids = [1, 2]
+        return RADBC(nodamb, famb, cntrlnd, eids, comment='')
 
     def __init__(self, nodamb, famb, cntrlnd, eids, comment=''):
         ThermalBC.__init__(self)
@@ -231,6 +246,12 @@ class VIEW(BaseCard):
     """
     type = 'VIEW'
 
+    @classmethod
+    def _init_from_empty(cls):
+        iview = 2
+        icavity = 2
+        return VIEW(iview, icavity, shade='BOTH', nbeta=1, ngamma=1, dislin=0.0, comment='')
+
     def __init__(self, iview, icavity, shade='BOTH', nbeta=1, ngamma=1,
                  dislin=0.0, comment=''):
         """
@@ -334,6 +355,12 @@ class VIEW3D(BaseCard):
     +--------+---------+------+------+------+------+--------+------+--------+
     """
     type = 'VIEW3D'
+
+    @classmethod
+    def _init_from_empty(cls):
+        icavity = 2
+        return VIEW3D(icavity, gitb=4, gips=4, cier=4, error_tol=0.1,
+                      zero_tol=1e-10, warp_tol=0.01, rad_check=3, comment='')
 
     def __init__(self, icavity, gitb=4, gips=4, cier=4,
                  error_tol=0.1, zero_tol=1e-10, warp_tol=0.01,
@@ -455,6 +482,13 @@ class RADCAV(ThermalBC):
     """
     type = 'RADCAV'
 
+    @classmethod
+    def _init_from_empty(cls):
+        icavity = 2
+        sets = [1, 2, 3]
+        return RADCAV(icavity, sets, ele_amb=None, shadow='YES', scale=0.0,
+                      prtpch=None, nefci=None, rmax=0.1, ncomp=32, comment='')
+
     def __init__(self, icavity, sets, ele_amb=None,
                  shadow='YES', scale=0.0, prtpch=None,
                  nefci=None, rmax=0.1, ncomp=32, comment=''):
@@ -561,6 +595,12 @@ class RADLST(ThermalBC):
     """
     type = 'RADCAV'
 
+    @classmethod
+    def _init_from_empty(cls):
+        icavity = 2
+        eids = [1, 2, 3]
+        return RADLST(icavity, eids, matrix_type=1, comment='')
+
     def __init__(self, icavity, eids, matrix_type=1, comment=''):
         ThermalBC.__init__(self)
         if comment:
@@ -632,6 +672,13 @@ class RADMTX(ThermalBC):
     +--------+---------+--------+--------+--------+--------+--------+--------+--------+
     """
     type = 'RADMTX'
+
+    @classmethod
+    def _init_from_empty(cls):
+        iview = 1
+        index = 2
+        exchange_factors = [1., 2.]
+        return RADMTX(icavity, index, exchange_factors, comment='')
 
     def __init__(self, icavity, index, exchange_factors, comment=''):
         ThermalBC.__init__(self)

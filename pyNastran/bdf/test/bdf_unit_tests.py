@@ -11,6 +11,7 @@ from pyNastran.bdf.cards.collpase_card import collapse_thru_by
 from pyNastran.bdf.bdf import BDF, read_bdf, CrossReferenceError
 from pyNastran.bdf.write_path import write_include, _split_path
 from pyNastran.bdf.test.test_bdf import run_bdf, run_all_files_in_folder, compare
+from pyNastran.utils.log import get_logger
 
 PKG_PATH = pyNastran.__path__[0]
 TEST_PATH = os.path.join(PKG_PATH, 'bdf', 'test')
@@ -20,50 +21,50 @@ class Tester(unittest.TestCase):
 
     def run_bdf(self, folder, bdf_filename, xref=False, size=8,
                 mesh_form='combined', dynamic_vars=None, debug=False, quiet=True,
-                run_extract_bodies=True):
+                run_extract_bodies=True, save_file_structure=False, log=None):
         #xref = False
+        if quiet:
+            debug = None
         return run_bdf(folder, bdf_filename, xref=xref, size=size,
                        is_folder=True,
                        mesh_form=mesh_form, dynamic_vars=dynamic_vars,
                        debug=debug, quiet=quiet,
-                       sum_load=True, run_extract_bodies=run_extract_bodies)
+                       sum_load=True, run_extract_bodies=run_extract_bodies,
+                       save_file_structure=save_file_structure, log=log)
 
     def run_all_files_in_folder(self, folder, xref=False, cid=None, debug=False):
         run_all_files_in_folder(folder, xref=xref, debug=debug)
 
-is_windows = 'nt' in os.name
 
 class TestBDF(Tester):
 
-    @unittest.skipIf(not is_windows, 'write_include doesnt writing INCLUDEs on mac/linux')
     def test_write_path(self):
-        if is_windows:
-            include_name = r'C:\NASA\formats\pynastran_v0.6\pyNastran\bdf\writePath.py'
-            msg1 = write_include(include_name, is_windows=True)
-            sline1 = _split_path(include_name)
+        include_name = r'C:\NASA\formats\pynastran_v0.6\pyNastran\bdf\writePath.py'
+        msg1 = write_include(include_name, is_windows=True)
+        sline1 = _split_path(include_name, is_windows=True)
 
-            include_name = r'/opt/NASA/formats/pynastran_v0.6/pyNastran/bdf/writePath.py'
-            msg2 = write_include(include_name, is_windows=False)
-            sline2 = _split_path(include_name)
+        include_name = r'/opt/NASA/formats/pynastran_v0.6/pyNastran/bdf/writePath.py'
+        msg2 = write_include(include_name, is_windows=False)
+        sline2 = _split_path(include_name, is_windows=False)
 
-            include_name = r'/opt/NASA/test1/test2/test3/test4/formats/pynastran_v0.6/pyNastran/bdf/writePath.py'
-            msg3 = write_include(include_name, is_windows=False)
-            sline3 = _split_path(include_name)
+        include_name = r'/opt/NASA/test1/test2/test3/test4/formats/pynastran_v0.6/pyNastran/bdf/writePath.py'
+        msg3 = write_include(include_name, is_windows=False)
+        sline3 = _split_path(include_name, is_windows=False)
 
-            include_name = r'opt/NASA/test1/test2/test3/test4/formats/pynastran_v0.6/pyNastran/bdf/writePath.py'
-            msg4 = write_include(include_name, is_windows=True)
-            sline4 = _split_path(include_name)
+        include_name = r'opt/NASA/test1/test2/test3/test4/formats/pynastran_v0.6/pyNastran/bdf/writePath.py'
+        msg4 = write_include(include_name, is_windows=True)
+        sline4 = _split_path(include_name, is_windows=True)
 
-            msg1_expected = r'INCLUDE C:\\NASA\formats\pynastran_v0.6\pyNastran\bdf\writePath.py' '\n'
-            msg2_expected = 'INCLUDE /opt/NASA/formats/pynastran_v0.6/pyNastran/bdf/writePath.py\n'
-            msg3_expected = ('INCLUDE /opt/NASA/test1/test2/test3/test4/formats/pynastran_v0.6/\n'
-                             '        pyNastran/bdf/writePath.py\n')
-            msg4_expected = (r'INCLUDE opt\NASA\test1\test2\test3\test4\formats\pynastran_v0.6' '\\\n'
-                             r'        pyNastran\bdf\writePath.py' '\n')
-            assert msg1 == msg1_expected, 'test1 actual:\n%r\nexpected:\n%r\n%s' % (msg1, msg1_expected, str(sline1))
-            assert msg2 == msg2_expected, 'test2 actual:\n%r\nexpected:\n%r\n%s' % (msg2, msg2_expected, str(sline2))
-            assert msg3 == msg3_expected, 'test3 actual:\n%r\nexpected:\n%r\n%s' % (msg3, msg3_expected, str(sline3))
-            assert msg4 == msg4_expected, 'test4 actual:\n%r\nexpected:\n%r\n%s' % (msg4, msg4_expected, str(sline4))
+        msg1_expected = r"INCLUDE 'C:\\NASA\formats\pynastran_v0.6\pyNastran\bdf\writePath.py'" + '\n'
+        msg2_expected = "INCLUDE '/opt/NASA/formats/pynastran_v0.6/pyNastran/bdf/writePath.py'\n"
+        msg3_expected = ("INCLUDE '/opt/NASA/test1/test2/test3/test4/formats/pynastran_v0.6/\n"
+                         "        pyNastran/bdf/writePath.py'\n")
+        msg4_expected = (r"INCLUDE 'opt\NASA\test1\test2\test3\test4\formats\pynastran_v0.6" + '\\\n' +
+                         r"        pyNastran\bdf\writePath.py'" + '\n')
+        assert msg1 == msg1_expected, 'test1 actual:\n%r\nexpected:\n%r\n%s' % (msg1, msg1_expected, str(sline1))
+        assert msg2 == msg2_expected, 'test2 actual:\n%r\nexpected:\n%r\n%s' % (msg2, msg2_expected, str(sline2))
+        assert msg3 == msg3_expected, 'test3 actual:\n%r\nexpected:\n%r\n%s' % (msg3, msg3_expected, str(sline3))
+        assert msg4 == msg4_expected, 'test4 actual:\n%s\nexpected:\n%s\n%s' % (msg4, msg4_expected, str(sline4))
 
     def test_object_attributes_01(self):
         """tests getting object attributes"""
@@ -105,8 +106,9 @@ class TestBDF(Tester):
     def test_bdf_01(self):
         """checks solid_bending.dat"""
         bdf_filename = os.path.join(MODEL_PATH, 'solid_bending', 'solid_bending.bdf')
-        self.run_bdf('', bdf_filename)
-        fem1, fem2, diff_cards = self.run_bdf('', bdf_filename, xref=True)
+        log = get_logger(log=None, level='error', encoding='utf-8')
+        self.run_bdf('', bdf_filename, log=log)
+        fem1, fem2, diff_cards = self.run_bdf('', bdf_filename, xref=True, log=log)
         diff_cards2 = list(set(diff_cards))
         diff_cards2.sort()
         assert len(diff_cards2) == 0, diff_cards2
@@ -138,7 +140,7 @@ class TestBDF(Tester):
         assert len(cards) == 9, len(cards)
 
 
-        etype_to_eids_pids_nids = model.get_element_nodes_by_element_type()
+        etype_to_eids_pids_nids = model.get_elements_properties_nodes_by_element_type()
         assert len(etype_to_eids_pids_nids) == 1, list(etype_to_eids_pids_nids.keys())
         #etype_to_eids_pids_nids[etype] : [eids, pids, nids]
         eids, pids, node_ids = etype_to_eids_pids_nids['CTETRA4']
@@ -187,7 +189,9 @@ class TestBDF(Tester):
     def test_bdf_03(self):
         """checks cbush.dat"""
         bdf_filename = os.path.join(MODEL_PATH, 'cbush', 'cbush.dat')
-        fem1, fem2, diff_cards = self.run_bdf('', bdf_filename, debug=False)
+        log = get_logger(log=None, level='error', encoding='utf-8')
+        fem1, fem2, diff_cards = self.run_bdf('', bdf_filename, log=log)
+
         diff_cards2 = list(set(diff_cards))
         diff_cards2.sort()
         assert len(diff_cards2) == 0, diff_cards2
@@ -203,7 +207,7 @@ class TestBDF(Tester):
 
         compare_mass_cg_inertia(fem1)
 
-        self.run_bdf('', bdf_filename, xref=True, debug=False)
+        self.run_bdf('', bdf_filename, xref=True, debug=False, log=log)
 
     def test_bdf_04(self):
         """checks beam_modes.dat"""
@@ -514,10 +518,14 @@ class TestBDF(Tester):
         bdf_filename = os.path.join(PKG_PATH, 'bdf', 'test', 'unit', 'testA.bdf')
         (fem1, fem2, diff_cards) = self.run_bdf(
             '', bdf_filename, xref=False, run_extract_bodies=False,
+            #save_file_structure=True,
         )
         diff_cards2 = list(set(diff_cards))
         diff_cards2.sort()
-        assert len(diff_cards2) == 0, diff_cards2
+        if len(diff_cards2) != 0:  # pragma: no cover
+            msg = 'check testA.test_bdf.out\ndiff_cards2=%s\n' % (diff_cards2)
+            raise AssertionError(msg)
+
         #os.remove(bdf_filename + '_out')
         #self.run_bdf(folder, bdf_filename, xref=True) # PBEAML is not supported
 
@@ -557,34 +565,80 @@ class TestBDF(Tester):
     def test_bdf_superelement_1(self):
         """checks resvec23.bdf"""
         bdf_filename = os.path.join(MODEL_PATH, 'superelements', 'resvec23.bdf')
+        log = get_logger(log=None, level='error', encoding='utf-8')
         (fem1, fem2, diff_cards) = self.run_bdf(
-            '', bdf_filename, xref=False, run_extract_bodies=False,
+            '', bdf_filename, xref=True, run_extract_bodies=False,
+            save_file_structure=False, log=log,
         )
         diff_cards2 = list(set(diff_cards))
         diff_cards2.sort()
         assert len(diff_cards2) == 0, diff_cards2
+        #bdf_filenames = {bdf_filename : 'cat.bdf',}
+        #fem1.write_bdfs(bdf_filenames)
+        #os.remove('cat.bdf')
 
     def test_bdf_superelement_2(self):
         """checks superelement.bdf"""
         bdf_filename = os.path.join(MODEL_PATH, 'superelements', 'superelement.bdf')
+        log = get_logger(log=None, level='error', encoding='utf-8')
         (fem1, fem2, diff_cards) = self.run_bdf(
-            '', bdf_filename, xref=False, run_extract_bodies=False,
+            '', bdf_filename, xref=True, run_extract_bodies=False,
+            save_file_structure=True, log=log,
         )
         diff_cards2 = list(set(diff_cards))
         diff_cards2.sort()
         assert len(diff_cards2) == 0, diff_cards2
+        bdf_filenames = {bdf_filename : 'cat.bdf',}
+        fem1.write_bdfs(bdf_filenames)
+        os.remove('cat.bdf')
+
         #os.remove(bdf_filename + '_out')
         #self.run_bdf(folder, bdf_filename, xref=True) # PBEAML is not supported
 
     def test_bdf_superelement_3(self):
         """checks cqrsee101b2.bdf"""
         bdf_filename = os.path.join(MODEL_PATH, 'superelements', 'cqrsee101b2.bdf')
+        log = get_logger(log=None, level='error', encoding='utf-8')
         (fem1, fem2, diff_cards) = self.run_bdf(
-            '', bdf_filename, xref=False, run_extract_bodies=False,
+            '', bdf_filename, xref=True, run_extract_bodies=False,
+            save_file_structure=True, log=log,
         )
         diff_cards2 = list(set(diff_cards))
         diff_cards2.sort()
         assert len(diff_cards2) == 0, diff_cards2
+        bdf_filenames = {bdf_filename : 'cat.bdf',}
+        fem1.write_bdfs(bdf_filenames)
+        os.remove('cat.bdf')
+
+    def test_bdf_superelement_4(self):
+        """checks see101l8.bdf"""
+        bdf_filename = os.path.join(MODEL_PATH, 'superelements', 'see101l8.bdf')
+        log = get_logger(log=None, level='error', encoding='utf-8')
+        (fem1, fem2, diff_cards) = self.run_bdf(
+            '', bdf_filename, xref=True, run_extract_bodies=False,
+            save_file_structure=True, log=log,
+        )
+        diff_cards2 = list(set(diff_cards))
+        diff_cards2.sort()
+        assert len(diff_cards2) == 0, diff_cards2
+        #bdf_filenames = {bdf_filename : 'cat.bdf',}
+        #fem1.write_bdfs(bdf_filenames)
+        #os.remove('cat.bdf')
+
+    def test_bdf_superelement_5(self):
+        """checks flyswatter.bdf"""
+        from pyNastran.bdf.mesh_utils.bdf_renumber import superelement_renumber
+        bdf_filename = os.path.join(MODEL_PATH, 'superelements', 'flyswatter', 'flyswatter.bdf')
+        bdf_filename_out = os.path.join(MODEL_PATH, 'superelements', 'flyswatter', 'flyswatter.re.bdf')
+        #log = get_logger(log=None, level='error', encoding='utf-8')
+
+        fem1 = read_bdf(bdf_filename, validate=True, xref=True, punch=False,
+                        save_file_structure=False, skip_cards=None, read_cards=None,
+                        encoding=None, log=None, debug=True, mode='msc')
+
+        superelement_renumber(
+            fem1, bdf_filename_out=bdf_filename_out,
+            starting_id_dict=None)
 
     def test_bdf_other_1(self):
         """checks axisymmetric model"""
@@ -592,9 +646,9 @@ class TestBDF(Tester):
         bdf_filename_test = os.path.join(MODEL_PATH, 'other', 'd07d2.test_bdf.bdf')
         fem1 = read_bdf(bdf_filename, validate=True, xref=True, punch=False,
                         skip_cards=None, read_cards=None,
-                        encoding=None, log=None, debug=True, mode='msc')
+                        encoding=None, log=None, debug=False, mode='msc')
         fem1.write_bdf(bdf_filename_test)
-        fem2 = read_bdf(bdf_filename_test)
+        fem2 = read_bdf(bdf_filename_test, debug=None)
 
         diff_cards = compare(fem1, fem2, xref=True, check=False,
                              print_stats=True, quiet=True)

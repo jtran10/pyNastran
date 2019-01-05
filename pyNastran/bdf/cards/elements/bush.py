@@ -10,6 +10,7 @@ All bush elements are BushElement and Element objects.
 """
 from __future__ import (nested_scopes, generators, division, absolute_import,
                         print_function, unicode_literals)
+import numpy as np
 
 from pyNastran.utils.numpy_utils import integer_types
 from pyNastran.bdf.field_writer_8 import set_blank_if_default
@@ -73,6 +74,7 @@ class CBUSH(BushElement):
     _field_map = {
         1: 'eid', 2:'pid', 3:'ga', 4:'gb', 8:'cid', 9:'s', 10:'ocid'
     }
+    _properties = ['_field_map', ]
 
     def update_by_cp_name(self, cp_name, value):
         #if isinstance(pname_fid, int):
@@ -164,6 +166,9 @@ class CBUSH(BushElement):
             #: if OCID > 0.
         if si is None:
             si = [None, None, None]
+        if x is None:
+            x = [None, None, None]
+
         self.eid = eid
         self.pid = pid
         self.nodes = nids
@@ -177,6 +182,78 @@ class CBUSH(BushElement):
         self.pid_ref = None
         self.cid_ref = None
         self.ocid_ref = None
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, eids):
+        """exports the elements in a vectorized way"""
+        #comments = []
+        pids = []
+        nodes = []
+        x = []
+        g0 = []
+        cid = []
+        s = []
+        ocid = []
+        si = []
+        nan = np.full(3, np.nan)
+        for eid in eids:
+            element = model.elements[eid]
+            #comments.append(element.comment)
+            pids.append(element.pid)
+            nodes.append([nid if nid is not None else 0 for nid in element.nodes])
+
+            if element.cid is None:
+                cid.append(-1)
+                g0i = element.g0
+                #print(g0i, element.x)
+                if g0i is not None:
+                    assert element.x[0] is None
+                    x.append(nan)
+                    g0.append(g0i)
+                else:
+                    #assert element.x[0] is not None, element.get_stats()
+                    if element.x[0] is None:
+                        x.append(nan)
+                    else:
+                        x.append(element.x)
+                    g0.append(-1)
+            else:
+                cid.append(element.cid)
+                g0i = element.g0
+                if g0i is not None:
+                    assert element.x[0] is None
+                    x.append(nan)
+                    g0.append(g0i)
+                else:
+                    if element.x[0] is None:
+                        x.append(nan)
+                    else:
+                        x.append(element.x)
+                    #assert element.x[0] is None, element.get_stats()
+                    #x.append(nan)
+                    g0.append(-1)
+
+            s.append(element.s)
+            ocid.append(element.ocid)
+            if element.si[0] is None:
+                si.append(nan)
+            else:
+                si.append(element.si)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('nodes', data=nodes)
+        h5_file.create_dataset('pid', data=pids)
+        #print('x =', x)
+        #print('g0 =', g0)
+        #print('cid =', cid)
+        h5_file.create_dataset('x', data=x)
+        h5_file.create_dataset('g0', data=g0)
+        h5_file.create_dataset('cid', data=cid)
+
+        h5_file.create_dataset('s', data=s)
+        h5_file.create_dataset('ocid', data=ocid)
+        #print('si =', si)
+        h5_file.create_dataset('si', data=si)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -379,6 +456,26 @@ class CBUSH1D(BushElement):
         self.gb_ref = None
         self.cid_ref = None
         self.pid_ref = None
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, eids):
+        """exports the elements in a vectorized way"""
+        #comments = []
+        pids = []
+        nodes = []
+        cid = []
+        for eid in eids:
+            element = model.elements[eid]
+            #comments.append(element.comment)
+            pids.append(element.pid)
+            nodes.append([nid if nid is not None else 0 for nid in element.nodes])
+            cid.append(element.cid if element.cid is not None else -1)
+        #h5_file.create_dataset('_comment', data=comments)
+        #print('cid =', cid)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('nodes', data=nodes)
+        h5_file.create_dataset('pid', data=pids)
+        h5_file.create_dataset('cid', data=cid)
 
     @classmethod
     def add_card(cls, card, comment=''):

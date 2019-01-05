@@ -12,6 +12,7 @@ from pyNastran.utils import _filename
 from pyNastran.utils.numpy_utils import loadtxt_nice
 from pyNastran.gui.gui_objects.gui_result import GuiResult
 from pyNastran.converters.nastran.displacements import DisplacementResults
+from pyNastran.converters.stl.stl import read_stl
 
 
 def check_for_newer_version(version_current=None):
@@ -178,7 +179,7 @@ def load_deflection_csv(out_filename, encoding='latin1'):
 
         try:
             #A = np.loadtxt(file_obj, dtype=dtype, delimiter=delimiter)
-            A = loadtxt_nice(file_obj, delimiter=delimiter)
+            A = loadtxt_nice(file_obj, comments='#', delimiter=delimiter)
         except:
             traceback.print_exc(file=sys.stdout)
             msg = 'extension=%r nheaders=%s delimiter=%r dtype=%s' % (
@@ -229,7 +230,7 @@ def load_csv(out_filename, encoding='latin1'):
 
         try:
             #A = loadtxt(file_obj, dtype=dtype, delimiter=delimiter)
-            A = loadtxt_nice(file_obj, dtype=dtype, delimiter=delimiter)
+            A = loadtxt_nice(file_obj, dtype=dtype, comments='#', delimiter=delimiter)
         except:
             traceback.print_exc(file=sys.stdout)
             msg = 'extension=%r nheaders=%s delimiter=%r dtype=%s' % (
@@ -378,6 +379,21 @@ def load_user_geom(fname, encoding='latin1'):
     QUAD, 3, 1, 5, 3, 4
     QUAD, 4, 1, 2, 3, 4  # this is after a blank line
     """
+    if fname.lower().endswith('.stl'):
+        stl_filename = fname
+        stl = read_stl(stl_filename)
+        nnodes = stl.nodes.shape[0]
+        ntris = stl.elements.shape[0]
+        grid_ids = np.arange(1, nnodes+1, dtype='int32')
+        xyz = stl.nodes
+        eids = np.arange(1, ntris+1, dtype='int32')
+        tris = np.vstack([eids, stl.elements.T + 1]).T
+        #tris = stl.elements + 1
+        #print(tris)
+        quads = np.array([], dtype='int32')
+        bars = np.array([], dtype='int32')
+        return grid_ids, xyz, bars, tris, quads
+
     with open(_filename(fname), 'r', encoding=encoding) as user_geom:
         lines = user_geom.readlines()
 
@@ -405,7 +421,7 @@ def load_user_geom(fname, encoding='latin1'):
                 assert len(sline) == 6, sline
                 quads.append(sline[1:])
             else:
-                print(sline)
+                self.log.warning(sline)
 
     grid_ids = np.array(grid_ids, dtype='int32')
     xyz = np.array(xyz, dtype='float32')

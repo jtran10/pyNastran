@@ -26,14 +26,30 @@ from pyNastran.gui.gui_objects.coord_properties import CoordProperties
 class SingleChoiceQTableView(QTableView):
     def __init__(self, *args, **kwargs):
         self.parent2 = args[0]
+
+        # name is not required
+        self.name = None
+        if 'name' in kwargs:
+            self.name = kwargs['name']
+            del kwargs['name']
+
         #super(SingleChoiceQTableView, self).__init__()
         QTableView.__init__(self, *args, **kwargs) #Use QTableView constructor
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
 
+    def get_data(self):
+        return self.model().items
+
     def update_data(self, data):  # not needed?
-        #items = self.getModel()
-        self.model().change_data(data)
+        #items = self.getModel() # just the data...
+        #self.model().change_data(data) # doesn't work...
+        items = self.model().items
+        header_labels = self.model().header_labels
+
+        parent = self.parent2
+        table_model = Model(data, header_labels, parent=parent)
+        self.setModel(table_model)
 
     def getModel(self):  # not needed?
         model = self.model() #tableView.model()
@@ -62,7 +78,10 @@ class SingleChoiceQTableView(QTableView):
         self.selectRow(irow)
         if irow == -1:  # null case
             return
-        self.parent2.update_active_key(index)
+        if self.name is None:
+            self.parent2.update_active_key(index)
+        else:
+            self.parent2.update_active_key(self.name, index)
 
         #index = self.currentIndex()
         #self.parent2.update_active_key(index)
@@ -87,7 +106,16 @@ class SingleChoiceQTableView(QTableView):
         key = event.key()
         if key == Qt.Key_Delete:
             index = self.currentIndex()
-            self.parent().on_delete(index.row())
+            parent = self.parent()
+            irow = index.row()
+            if self.name is None:
+                parent.on_delete(irow)
+            else:
+                #print('parent =', parent, type(parent))
+                #print('parent2 =', self.parent2, type(self.parent2))
+                self.parent2.on_delete(self.name, irow)
+
+            #self.parent().on_delete(index.row()) # old
             #print('pressed delete')
         elif key in [Qt.Key_Up, Qt.Key_Left]:
             index = self.currentIndex()
@@ -258,7 +286,7 @@ class EditGeometryProperties(PyDialog):
         self.representation_label = QLabel('Representation:')
         self.checkbox_wire = QCheckBox('Wireframe')
         self.checkbox_surf = QCheckBox('Surface/Solid')
-        print("representation = %s" % self.representation)
+        #print('representation = %s' % self.representation)
         #self.check_point = QCheckBox()
 
         self.use_slider = True

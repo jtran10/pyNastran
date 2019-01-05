@@ -7,28 +7,44 @@ All ungrouped elements are defined in this file.  This includes:
  * CRAC2D
  * CRAC3D
  * PLOTEL
+ * GENEL
 
 All ungrouped elements are Element objects.
 """
 from __future__ import (nested_scopes, generators, division, absolute_import,
                         print_function, unicode_literals)
+import numpy as np
 
 from pyNastran.utils.numpy_utils import integer_types
-from pyNastran.bdf.cards.base_card import Element, BaseCard, break_word_by_trailing_integer
+from pyNastran.bdf.cards.base_card import (
+    Element, BaseCard, break_word_by_trailing_integer, _node_ids)
 from pyNastran.bdf.bdf_interface.assign_type import (
     fields, integer, integer_or_blank, integer_double_or_blank,
-    double_or_blank, string)
+    double, double_or_blank, string)
 from pyNastran.bdf.field_writer_8 import print_card_8
+from pyNastran.bdf.field_writer_16 import print_card_16
 
 
 class CFAST(Element):
+    """defines the CFAST element"""
     type = 'CFAST'
+    _properties = ['node_ids', 'nodes']
     _field_map = {
         1: 'eid', 2:'pid', 3:'Type', 4:'ida', 5:'idb', 6:'gs', 7:'ga', 8:'gb',
         9:'xs', 10:'ys', 11:'zs',
     }
     cp_name_map = {
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        Type = 'Type'
+        ida = 1
+        idb = 2
+        return CFAST(eid, pid, Type, ida, idb,
+                     gs=None, ga=None, gb=None, xs=None, ys=None, zs=None, comment='')
 
     def __init__(self, eid, pid, Type, ida, idb, gs=None, ga=None, gb=None,
                  xs=None, ys=None, zs=None, comment=''):
@@ -57,9 +73,10 @@ class CFAST(Element):
         if self.Type not in ['PROP', 'ELEM']:
             msg = 'CFAST; eid=%s Type=%r must be in [PROP, ELEM]' % (self.eid, self.Type)
             raise TypeError(msg)
-        if(self.gs is None and
-           (self.ga is None or self.gb is None) and
-           (self.xs is None or self.ys is None or self.zs is None)):
+
+        gab_is_none = self.ga is None or self.gb is None
+        xyz_is_none = self.xs is None or self.ys is None or self.zs is None
+        if self.gs is None and gab_is_none and xyz_is_none:
             msg = ('CFAST; eid=%s; gs=%s is not an integer or\n'
                    '              [ga=%s, gb=%s] are not integers or \n'
                    '              [xs=%s, ys=%s, zs=%s] are not floats' % (
@@ -153,23 +170,28 @@ class CFAST(Element):
 
     @property
     def nodes(self):
+        """gets all the nodes used on the CFAST (Gs, Ga, Gb)"""
         return [self.gs, self.ga, self.gb]
 
     def get_edge_ids(self):
         return [tuple(sorted(self.node_ids))]
 
     def Gs(self):
+        """Gets the GS node"""
         if isinstance(self.gs, integer_types):
             return self.gs
         elif self.gs is not None:
             return self.gs_ref.nid
+        raise RuntimeError('Gs was not returned from CFAST')
 
     def Ga(self):
+        """Gets the GA node"""
         if isinstance(self.ga, integer_types) or self.ga is None:
             return self.ga
         return self.ga_ref.nid
 
     def Gb(self):
+        """Gets the GB node"""
         if isinstance(self.gb, integer_types) or self.gb is None:
             return self.gb
         return self.gb_ref.nid
@@ -187,6 +209,7 @@ class CFAST(Element):
 
     @property
     def node_ids(self):
+        """gets all the node ids used on the CFAST (Gs, Ga, Gb)"""
         return [self.Gs(), self.Ga(), self.Gb()]
 
     def repr_fields(self):
@@ -245,7 +268,6 @@ class CGAP(Element):
             raise NotImplementedError('element_type=%r has not implemented %r in cp_name_map' % (
                 self.type, cp_name))
 
-
     def __init__(self, eid, pid, nids, x, g0, cid=None, comment=''):
         """
         Creates a CGAP card
@@ -287,6 +309,63 @@ class CGAP(Element):
         self.gb_ref = None
         self.cid_ref = None
         self.pid_ref = None
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, eids):
+        """exports the elements in a vectorized way"""
+        #comments = []
+        pids = []
+        nodes = []
+        x = []
+        g0 = []
+        cid = []
+        nan = np.full(3, np.nan)
+        for eid in eids:
+            element = model.elements[eid]
+            #comments.append(element.comment)
+            pids.append(element.pid)
+            nodes.append(element.nodes)
+
+            if element.cid is None:
+                cid.append(-1)
+                g0i = element.g0
+                if g0i is not None:
+                    assert element.x[0] is None
+                    x.append(nan)
+                    g0.append(g0i)
+                else:
+                    if element.x[0] is None:
+                        x.append(nan)
+                    else:
+                        x.append(element.x)
+                    #assert element.x[0] is not None, element.get_stats()
+                    #x.append(element.x)
+                    g0.append(-1)
+            else:
+                cid.append(element.cid)
+                g0i = element.g0
+                if g0i is not None:
+                    assert x[0] is None
+                    x.append(nan)
+                    g0.append(g0i)
+                else:
+                    if element.x[0] is None:
+                        x.append(nan)
+                    else:
+                        x.append(element.x)
+                    #assert element.x[0] is None, element.get_stats()
+                    x.append(nan)
+                    g0.append(-1)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('nodes', data=nodes)
+        h5_file.create_dataset('pid', data=pids)
+        #print('x =', x)
+        #print('g0 =', g0)
+        #print('cid =', cid)
+        h5_file.create_dataset('x', data=x)
+        h5_file.create_dataset('g0', data=g0)
+        h5_file.create_dataset('cid', data=cid)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -349,6 +428,14 @@ class CGAP(Element):
         return CGAP(eid, pid, [ga, gb], x, g0, cid=cid, comment=comment)
 
     def _verify(self, xref):
+        """
+        Verifies all methods for this object work
+
+        Parameters
+        ----------
+        xref : bool
+            has this model been cross referenced
+        """
         cid = self.Cid()
         eid = self.eid
         pid = self.Pid()
@@ -464,6 +551,7 @@ class CrackElement(Element):
     type = 'Crack'
 
     def __init__(self):
+        Element.__init__(self)
         self.eid = 0
         self.nodes_ref = None
         self.pid_ref = None
@@ -503,10 +591,25 @@ class CrackElement(Element):
 
 class CRAC2D(CrackElement):
     type = 'CRAC2D'
+    _properties = ['node_ids']
     _field_map = {
         1: 'eid', 2:'pid',
     }
     ## todo:: not done
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        nids = [1]
+        return CRAC2D(eid, pid, nids, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.nodes, np.ndarray):
+            self.nodes = self.nodes.tolist()
+        self.nodes = [None if np.isnan(nid) else nid
+                      for nid in self.nodes]
 
     def __init__(self, eid, pid, nids, comment=''):
         CrackElement.__init__(self)
@@ -597,10 +700,25 @@ class CRAC2D(CrackElement):
 
 class CRAC3D(CrackElement):
     type = 'CRAC3D'
+    _properties = ['node_ids']
     _field_map = {
         1: 'eid', 2:'pid',
     }
     ## todo:: not done
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        nids = [1]
+        return CRAC3D(eid, pid, nids, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.nodes, np.ndarray):
+            self.nodes = self.nodes.tolist()
+        self.nodes = [None if np.isnan(nid) else nid
+                      for nid in self.nodes]
 
     def __init__(self, eid, pid, nids, comment=''):
         CrackElement.__init__(self)
@@ -695,6 +813,27 @@ class PLOTEL(BaseCard):
     _field_map = {
         1: 'eid', 3:'g1', 4:'g2',
     }
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        nodes = [1, 2]
+        return PLOTEL(eid, nodes, comment='')
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, encoding):
+        """exports the elements in a vectorized way"""
+        #comments = []
+        nodes = []
+        eids = list(model.plotels.keys())
+        for eid in eids:
+            element = model.plotels[eid]
+            #comments.append(element.comment)
+            nodes.append(element.nodes)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('nodes', data=nodes)
 
     def __init__(self, eid, nodes, comment=''):
         """
@@ -804,3 +943,306 @@ class PLOTEL(BaseCard):
         nodes = self.node_ids
         msg = 'PLOTEL  %8i%8i%8i\n' % (self.eid, nodes[0], nodes[1])
         return self.comment + msg
+
+
+class GENEL(BaseCard):
+    """
+    +-------+------+-----+------+------+------+------+-------+------+
+    |   1   |   2  |  3  |   4  |   5  |   6  |   7  |   8   |   9  |
+    +=======+======+=====+======+======+======+======+=======+======+
+    | GENEL | EID  |     | UI1  | CI1  | UI2  | CI2  |  UI3  | CI3  |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       | UI4  | CI4 | UI5  | CI5  | etc. |      |       |      |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       | UD   |     | UD1  | CD1  | UD2  | CD2  | etc.  |      |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       | K/Z  |     | KZ11 | KZ21 | KZ31 | etc. | KZ22  | KZ32 |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       | etc. |     | KZ33 | KZ43 | etc. |      |       |      |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       | S    |     | S11  | S12  | etc. |  S21 |  etc. |      |
+    +-------+------+-----+------+------+------+------+-------+------+
+
+    +-------+------+-----+------+------+------+------+-------+------+
+    | GENEL |  629 |     |  1   |  1   |  13  |  4   |   42  |   0  |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       |  24  |  2  |      |      |      |      |       |      |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       |  UD  |     |  6   |  2   |  33  |  0   |       |      |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       |  Z   | 1.0 | 2.0  | 3.0  | 4.0  | 5.0  |  6.0  | 7.0  |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       |  8.0 | 9.0 | 10.0 |      |      |      |       |      |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       |  S   | 1.5 | 2.5  | 3.5  | 4.5  | 5.5  |  6.5  | 7.5  |
+    +-------+------+-----+------+------+------+------+-------+------+
+    |       |  8.5 |     |      |      |      |      |       |      |
+    +-------+------+-----+------+------+------+------+-------+------+
+    """
+    type = 'GENEL'
+    #pid = 0
+    _properties = ['node_ids', 'ul_nodes', 'ud_nodes']
+    @classmethod
+    def _init_from_empty(self):
+        eid = 1
+        ul = None
+        ud = None
+        k = [1.]
+        z = None
+        return GENEL(eid, ul, ud, k, z, s=None, comment='')
+
+    def __init__(self, eid, ul, ud, k, z, s=None, comment=''):
+        """creates a GENEL card
+
+        The required input is the {UL} list and the lower triangular
+        portion of [K] or [Z].  Additional input may include the {UD}
+        list and [S].  If [S] is input, must also be input.  If {UD} is
+        input but [S] is omitted, [S] is internally calculated. In this
+        case, {UD} must contain six and only six degrees-of freedom.
+        """
+        BaseCard.__init__(self)
+        if comment:
+            self.comment = comment
+        self.eid = eid
+        self.ul = ul
+        self.ud = ud
+        if k is not None:
+            self.k = np.asarray(k)
+            self.z = None
+        else:
+            self.z = np.asarray(z)
+            self.k = None
+
+        if s is not None:
+            s = np.asarray(s)
+        self.s = s
+
+        self.ul_nodes_ref = None
+        self.ud_nodes_ref = None
+
+    def _finalize_hdf5(self, encoding):
+        #print(len(self.ul), self.ul)
+        self.ul = np.array(self.ul, dtype='int32')#.reshape(len(self.ul) // 2, 2)
+        self.ud = np.array(self.ud, dtype='int32')#.reshape(len(self.ud) // 2, 2)
+        #print(self.s, self.s.shape, self.s.dtype, len(self.s.shape))
+        #print(self.s)
+        #print(self.ul)
+
+        if self.k is None or (isinstance(self.k, list) and len(self.k) == 0):
+            self.k = None
+        else:
+            self.k = np.array(self.k)
+
+        if self.z is None or (isinstance(self.z, list) and len(self.z) == 0):
+            self.z = None
+        else:
+            self.z = np.array(self.z)
+
+        #if self.s is None or len(self.s.shape) == 0:
+        if self.s is None or (isinstance(self.s, list) and len(self.s) == 0):
+            self.s = None
+        #elif self.s is not None:
+        else:
+            self.s = np.array(self.s)
+
+    @classmethod
+    def add_card(cls, card, comment=''):
+        eid = integer(card, 1, 'eid')
+        card_fields = card.fields()
+        nfields = card.nfields
+
+        _ul_fields, istop = _read_genel_fields_until_char_blank(card_fields, 3)
+        ul = []
+        for i, _ul in enumerate(_ul_fields):
+            uli = integer(card, i + 3, 'UL_%i' % (i + 1))
+            ul.append(uli)
+
+        n_ul = len(ul) + 2
+        n_blanks = _get_genel_offset(n_ul)
+        i_start = istop + n_blanks
+
+        #---------------------------------
+        ud = []
+        if i_start < nfields and card_fields[i_start] == 'UD':
+            assert card_fields[i_start] == 'UD', fields
+
+            _ud_fields, istop = _read_genel_fields_until_char_blank(card_fields, i_start+2)
+            for i, _ud in enumerate(_ud_fields):
+                udi = integer(card, i + i_start+2, 'UD_%i' % (i + 1))
+                ud.append(udi)
+
+            n_ud = len(ud) + 2
+            n_blanks = _get_genel_offset(n_ud)
+            i_start = istop + n_blanks
+
+        #---------------------------------
+        kz_char = card_fields[i_start].upper()
+        if kz_char == 'K':
+            k = []
+            z = None
+            kz = k
+        elif kz_char == 'Z':
+            k = None
+            z = []
+            kz = z
+        else:
+            raise RuntimeError(kz_char)
+
+        _kz_fields, istop = _read_genel_fields_until_char_blank(card_fields, i_start+1)
+        for i, _kz in enumerate(_kz_fields):
+            kzi = double(card, i + i_start+1, '%s_%i' % (kz_char, i + 1))
+            kz.append(kzi)
+
+        n_kz = len(kz) + 1
+        n_blanks = _get_genel_offset(n_kz)
+
+        #---------------------------------
+        i_start = istop + n_blanks
+        s = []
+        if i_start < nfields and card_fields[i_start] == 'S':
+            assert card_fields[i_start] == 'S', card_fields
+
+            _s_fields, istop = _read_genel_fields_until_char_blank(card_fields, i_start+1)
+            for i, _s in enumerate(_s_fields):
+                si = double(card, i + i_start+1, 'S_%i' % (i + 1))
+                s.append(si)
+
+        ul = np.array(ul).reshape(len(ul) // 2, 2)
+        ud = np.array(ud).reshape(len(ud) // 2, 2)
+        return GENEL(eid, ul, ud, k, z, s, comment=comment)
+
+    def cross_reference(self, model):
+        """
+        Cross links the card so referenced cards can be extracted directly
+
+        Parameters
+        ----------
+        model : BDF()
+            the BDF object
+        """
+        msg = ', which is required by GENEL eid=%s' % self.eid
+        self.ul_nodes_ref = model.Nodes(self.ul[:, 0], msg=msg)
+        if len(self.ud):
+            self.ud_nodes_ref = model.Nodes(self.ud[:, 0], msg=msg)
+
+    def safe_cross_reference(self, model, xref_errors):
+        """
+        Cross links the card so referenced cards can be extracted directly
+
+        Parameters
+        ----------
+        model : BDF()
+            the BDF object
+        """
+        #msg = ', which is required by GENEL eid=%s' % self.eid
+        self.cross_reference(model)
+        #self.ga_ref = model.Node(self.ga, msg=msg)
+        #self.gb_ref = model.Node(self.gb, msg=msg)
+
+    def uncross_reference(self):
+        self.ul[:, 0] = self.ul_nodes
+        self.ud[:, 0] = self.ud_nodes
+        self.ul_nodes_ref = None
+        self.ud_nodes_ref = None
+
+    #def center_of_mass(self):
+        #return 0.0
+
+    def raw_fields(self):
+        # we add to to represent the GENEL,eid fields
+        n_ul = self.ul.shape[0] * 2 + 2
+        ul_nones = _get_genel_offset(n_ul) * [None]
+
+        # same as UL for UD
+        n_ud = self.ud.shape[0] * 2 + 2
+        ud_nones = _get_genel_offset(n_ud) * [None]
+
+        # we call this kz to simplify our life
+        kz_char = 'K' if self.k is not None else 'Z'
+        kz = self.k if self.k is not None else self.z
+
+        # K/Z has a +1 instead of +2 because there is no blank after K/Z
+        n_kz = len(kz) + 1
+        kz_nones = _get_genel_offset(n_kz) * [None]
+
+
+        ud_line = []
+        if self.ud_nodes_ref is None:
+            if len(self.ud):
+                ud_nodes_dofs = self.ud.ravel().tolist()
+                ud_line = ['UD', None] + self.ud.ravel().tolist() + ud_nones
+        else:
+            ud_nodes = self.ud_nodes
+            ud_dofs = self.ud[:, 1]
+            ud_nodes_dofs = []
+            for ud_node, ud_dof in zip(ud_nodes, ud_dofs):
+                ud_nodes_dofs.extend([ud_node, ud_dof])
+            ud_line = ['UD', None] + ud_nodes_dofs + ud_nones
+
+        #print('s = %r' % self.s, self.s is not None)
+        s_line = []
+        if self.s is not None and len(self.s):
+            s_line = ['S'] + self.s.tolist()
+
+        if self.ul_nodes_ref is None:
+            ul_nodes_dofs = self.ul.ravel().tolist()
+        else:
+            ul_nodes = self.ul_nodes
+            ul_dofs = self.ul[:, 1]
+            ul_nodes_dofs = []
+            for ul_node, ul_dof in zip(ul_nodes, ul_dofs):
+                ul_nodes_dofs.extend([ul_node, ul_dof])
+
+        list_fields = ['GENEL', self.eid, None] + (
+            ul_nodes_dofs + ul_nones +
+            ud_line +
+            [kz_char] + kz.tolist() + kz_nones +
+            s_line
+        )
+        return list_fields
+
+    @property
+    def node_ids(self):
+        nodes = self.ul[:, 0].tolist()
+        if len(self.ud):
+            nodes += self.ud[:, 0].tolist()
+        return nodes
+
+    @property
+    def ul_nodes(self):
+        """gets the {UL} nodes"""
+        if self.ul_nodes_ref is None:
+            return self.ul[:, 0]
+        nodes = _node_ids(self, nodes=self.ul_nodes_ref, allow_empty_nodes=False)
+        return nodes
+
+    @property
+    def ud_nodes(self):
+        """gets the {UD} nodes"""
+        if self.ud_nodes_ref is None:
+            return self.ud[:, 0]
+        nodes = _node_ids(self, nodes=self.ud_nodes_ref, allow_empty_nodes=False)
+        return nodes
+
+    def write_card(self, size=8, is_double=False):
+        card = self.repr_fields()
+        if size == 8:
+            return self.comment + print_card_8(card)
+        return self.comment + print_card_16(card)
+
+def _get_genel_offset(n_ul):
+    """we add to to represent the GENEL,eid fields"""
+    n_ul_leftover = n_ul % 8
+    return (8 - n_ul_leftover)
+
+
+def _read_genel_fields_until_char_blank(card_fields, istart):
+    """somewhat loose parser helper function for GENEL"""
+    new_fields = []
+    for i, field in enumerate(card_fields[istart:]):
+        if field is None:
+            break
+        if field.upper() in ['UD', 'K', 'S', 'Z']:
+            break
+        new_fields.append(field)
+    return new_fields, istart+i

@@ -1,5 +1,8 @@
 """
+ - BCONP
+ - BLSEG
  - BCRPARA
+ - BCTPARA
  - BCTADD
  - BCTSET
  - BSURF
@@ -21,10 +24,20 @@ class BLSEG(BaseCard):
 
     Defines a 3D contact region by shell element IDs.
 
-    BLSEG ID G1 G2 G3 G4 G5 G6 G7
-    BLSEG ID G1 THRU G2 BY INC
+    +-------+----+----+------+----+----+-----+----+----+
+    | BLSEG | ID | G1 |  G2  | G3 | G4 | G5  | G6 | G7 |
+    +-------+----+----+------+----+----+-----+----+----+
+    | BLSEG | ID | G1 | THRU | G2 | BY | INC |    |    |
+    +-------+----+----+------+----+----+-----+----+----+
     """
     type = 'BLSEG'
+
+    @classmethod
+    def _init_from_empty(cls):
+        line_id = 1
+        nodes = [1]
+        return BLSEG(line_id, nodes, comment='')
+
     def __init__(self, line_id, nodes, comment=''):
         if comment:
             self.comment = comment
@@ -43,6 +56,7 @@ class BLSEG(BaseCard):
             a BDFCard object
         comment : str; default=''
             a comment for the card
+
         """
         line_id = integer(card, 1, 'line_id')
         #: Number (float)
@@ -56,9 +70,9 @@ class BLSEG(BaseCard):
             i += 1
         return BLSEG(line_id, nodes, comment=comment)
 
-    #def raw_fields(self):
-        #fields = ['BSURF', self.sid]
-        #return fields + list(self.eids)
+    def raw_fields(self):
+        list_fields = ['BLSEG', self.line_id] + self.nodes
+        return list_fields
 
     def write_card(self, size=8, is_double=False):
         card = self.repr_fields()
@@ -80,6 +94,17 @@ class BCONP(BaseCard):
 
     """
     type = 'BCONP'
+    @classmethod
+    def _init_from_empty(cls):
+        contact_id = 1
+        slave = 2
+        master = 3
+        sfac = 4
+        fric_id = 5
+        ptype = 'cat'
+        cid = 0
+        return BCONP(contact_id, slave, master, sfac, fric_id, ptype, cid, comment='')
+
     def __init__(self, contact_id, slave, master, sfac, fric_id, ptype, cid, comment=''):
         if comment:
             self.comment = comment
@@ -103,6 +128,7 @@ class BCONP(BaseCard):
             a BDFCard object
         comment : str; default=''
             a comment for the card
+
         """
         contact_id = integer(card, 1, 'contact_id')
         slave = integer(card, 2, 'slave')
@@ -113,9 +139,11 @@ class BCONP(BaseCard):
         cid = integer_or_blank(card, 8, 'cid', 0)
         return BCONP(contact_id, slave, master, sfac, fric_id, ptype, cid, comment=comment)
 
-    #def raw_fields(self):
-        #fields = ['BSURF', self.sid]
-        #return fields + list(self.eids)
+    def raw_fields(self):
+        list_fields = [
+            'BCONP', self.contact_id, self.slave, self.master, None, self.sfac,
+            self.fric_id, self.ptype, self.cid]
+        return list_fields
 
     def write_card(self, size=8, is_double=False):
         card = self.repr_fields()
@@ -154,6 +182,13 @@ class BSURF(BaseCard):
     +-------+------+------+-------+-------+--------+------+------+------+
     """
     type = 'BSURF'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        eids = [1]
+        return BSURF(sid, eids, comment='')
+
     def __init__(self, sid, eids, comment=''):
         if comment:
             self.comment = comment
@@ -173,6 +208,7 @@ class BSURF(BaseCard):
             a BDFCard object
         comment : str; default=''
             a comment for the card
+
         """
         sid = integer(card, 1, 'sid')
         #: Number (float)
@@ -238,14 +274,25 @@ class BSURFS(BaseCard):
        (contactor) or target.
     3. The ID must be unique with respect to all other BSURFS, BSURF, and
        BCPROP entries.
+
     """
     type = 'BSURFS'
-    def __init__(self, id, eids, g1s, g2s, g3s, comment=''):
+
+    @classmethod
+    def _init_from_empty(cls):
+        bsurfs_id = 1
+        eids = [1]
+        g1s = [1]
+        g2s = [1]
+        g3s = [1]
+        return BSURFS(bsurfs_id, eids, g1s, g2s, g3s, comment='')
+
+    def __init__(self, bsurfs_id, eids, g1s, g2s, g3s, comment=''):
         if comment:
             self.comment = comment
         #: Identification number of a contact region. See Remarks 2 and 3.
         #: (Integer > 0)
-        self.id = id
+        self.id = bsurfs_id
 
         #: Element identification numbers of solid elements. (Integer > 0)
         self.eids = eids
@@ -267,8 +314,9 @@ class BSURFS(BaseCard):
             a BDFCard object
         comment : str; default=''
             a comment for the card
+
         """
-        id = integer(card, 1, 'id')
+        bsurfs_id = integer(card, 1, 'id')
         eids = []
         g1s = []
         g2s = []
@@ -288,7 +336,7 @@ class BSURFS(BaseCard):
             g1s.append(g1)
             g2s.append(g2)
             g3s.append(g3)
-        return BSURFS(id, eids, g1s, g2s, g3s, comment=comment)
+        return BSURFS(bsurfs_id, eids, g1s, g2s, g3s, comment=comment)
 
     def raw_fields(self):
         fields = ['BSURFS', self.id, None, None, None]
@@ -317,6 +365,17 @@ class BCTSET(BaseCard):
     +--------+-------+------+-------+-------+-------+-------+
     """
     type = 'BCTSET'
+
+    @classmethod
+    def _init_from_empty(cls):
+        csid = 1
+        sids = [1]
+        tids = [1]
+        frictions = [0.01]
+        min_distances = [0.1]
+        max_distances = [1.]
+        return BCTSET(csid, sids, tids, frictions, min_distances, max_distances, comment='', sol=101)
+
     def __init__(self, csid, sids, tids, frictions, min_distances, max_distances,
                  comment='', sol=101):
         if comment:
@@ -390,6 +449,12 @@ class BCRPARA(BaseCard):
     +---------+------+------+--------+------+-----+---+---+---+----+
     """
     type = 'BCRPARA'
+
+    @classmethod
+    def _init_from_empty(cls):
+        crid = 1
+        return BCRPARA(crid, offset=None, surf='TOP', Type='FLEX', grid_point=0, comment='')
+
     def __init__(self, crid, offset=None, surf='TOP', Type='FLEX', grid_point=0,
                  comment=''):
         """
@@ -453,6 +518,7 @@ class BCRPARA(BaseCard):
             a BDFCard object
         comment : str; default=''
             a comment for the card
+
         """
         crid = integer(card, 1, 'crid')
         surf = string_or_blank(card, 2, 'surf', 'TOP')
@@ -490,6 +556,18 @@ class BCTPARA(BaseCard):
     +---------+--------+--------+--------+--------+--------+---------+--------+
     """
     type = 'BCTPARA'
+
+    @classmethod
+    def _init_from_empty(cls):
+        csid = 1
+        params = {'CSTIFF' : 1}
+        return BCTPARA(csid, params, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        keys, values = self.params
+        self.params = {key : value for key, value in zip(keys, values)}
+
     def __init__(self, csid, params, comment=''):
         """
         Creates a BCTPARA card
@@ -524,6 +602,7 @@ class BCTPARA(BaseCard):
             a BDFCard object
         comment : str; default=''
             a comment for the card
+
         """
         csid = integer(card, 1, 'csid')
         i = 2
@@ -624,6 +703,13 @@ class BCTADD(BaseCard):
        BCTADD entry.
     """
     type = 'BCTADD'
+
+    @classmethod
+    def _init_from_empty(cls):
+        csid = 1
+        contact_sets = [1, 2]
+        return BCTADD(csid, contact_sets, comment='')
+
     def __init__(self, csid, contact_sets, comment=''):
         if comment:
             self.comment = comment
@@ -645,6 +731,7 @@ class BCTADD(BaseCard):
             a BDFCard object
         comment : str; default=''
             a comment for the card
+
         """
         csid = integer(card, 1, 'csid')
         contact_sets = []

@@ -35,11 +35,7 @@ class PointElement(Element):
 
 class PointMassElement(PointElement):
     def __init__(self):
-        self.mass = None
         PointElement.__init__(self)
-
-    def Mass(self):
-        return self.mass
 
 
 # class PointMass(BaseCard):
@@ -64,6 +60,14 @@ class CMASS1(PointMassElement):
     _field_map = {
         1: 'eid', 2:'pid', 3:'g1', 4:'c1', 5:'g2', 6:'c2',
     }
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        nids = [1, 2]
+        return CMASS1(eid, pid, nids, c1=0, c2=0, comment='')
 
     def __init__(self, eid, pid, nids, c1=0, c2=0, comment=''):
         # type: (int, int, [int, int], int, int, str) -> CMASS1
@@ -267,6 +271,14 @@ class CMASS2(PointMassElement):
     cp_name_map = {
         'M' : 'mass',
     }
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        mass = 1.
+        nids = [1, 2]
+        return CMASS2(eid, mass, nids, c1=0, c2=0, comment='')
 
     def __init__(self, eid, mass, nids, c1, c2, comment=''):
         """
@@ -295,6 +307,25 @@ class CMASS2(PointMassElement):
         self.c2 = c2
         self.nodes_ref = None
         assert len(self.nodes) == 2, self.nodes
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, eids):
+        """exports the masses in a vectorized way"""
+        #comments = []
+        mass = []
+        nodes = []
+        components = []
+        for eid in eids:
+            element = model.masses[eid]
+            #comments.append(element.comment)
+            mass.append(element.mass)
+            nodes.append([nid if nid is not None else 0 for nid in element.nodes])
+            components.append([comp if comp is not None else 0 for comp in [element.c1, element.c2]])
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('mass', data=mass)
+        h5_file.create_dataset('nodes', data=nodes)
+        h5_file.create_dataset('components', data=components)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -476,6 +507,13 @@ class CMASS3(PointMassElement):
         1: 'eid', 2:'pid', 3:'s1', 4:'s2',
     }
 
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        nids = [1, 2]
+        return CMASS3(eid, pid, nids, comment='')
+
     def __init__(self, eid, pid, nids, comment=''):
         """
         Creates a CMASS3 card
@@ -598,9 +636,17 @@ class CMASS4(PointMassElement):
     +--------+-----+-----+----+----+
     """
     type = 'CMASS4'
+    _properties = ['node_ids']
     _field_map = {
         1: 'eid', 2:'mass', 3:'s1', 4:'s2',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        nids = [1, 2]
+        return CMASS4(eid, pid, nids, comment='')
 
     def __init__(self, eid, mass, nids, comment=''):
         """
@@ -668,12 +714,12 @@ class CMASS4(PointMassElement):
         return [self.S1(), self.S2()]
 
     def S1(self):
-        if self.nodes_ref is not None:
+        if self.nodes_ref is not None and self.nodes_ref[0] is not None:
             return self.nodes_ref[0].nid
         return self.nodes[0]
 
     def S2(self):
-        if self.nodes_ref is not None:
+        if self.nodes_ref is not None and self.nodes_ref[1] is not None:
             return self.nodes_ref[1].nid
         return self.nodes[1]
 
@@ -728,6 +774,7 @@ class CONM1(PointMassElement):
     _field_map = {
         1: 'eid', 2:'nid', 3:'cid',
     }
+    _properties = ['node_ids']
     def _update_field_helper(self, n, value):
         m = self.mass_matrix
         if n == 4:
@@ -791,6 +838,17 @@ class CONM1(PointMassElement):
         else:
             raise NotImplementedError('element_type=%r has not implemented %r in cp_name_map' % (
                 self.type, name))
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        nid = 1
+        mass_matrix = np.zeros((6, 6))
+        return CONM1(eid, nid, mass_matrix, cid=0, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        self.mass_matrix = np.asarray(self.mass_matrix)
 
     def __init__(self, eid, nid, mass_matrix, cid=0, comment=''):
         """
@@ -1063,6 +1121,38 @@ class CONM2(PointMassElement):
             self.I[5] = value
         else:
             raise KeyError('Field %r=%r is an invalid %s entry.' % (n, value, self.type))
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, eids):
+        """exports the elements in a vectorized way"""
+        comments = []
+        nid = []
+        cid = []
+        mass = []
+        X = []
+        I = []
+        for eid in eids:
+            element = model.masses[eid]
+            #comments.append(element.comment)
+            nid.append(element.nid)
+            cid.append(element.cid)
+            mass.append(element.mass)
+            X.append(element.X)
+            I.append(element.I)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('nid', data=nid)
+        h5_file.create_dataset('cid', data=cid)
+        h5_file.create_dataset('X', data=X)
+        h5_file.create_dataset('I', data=I)
+        h5_file.create_dataset('mass', data=mass)
+
+        #self.eid = eid
+        #self.nid = nid
+        #self.cid = cid
+        #self.mass = mass
+        #self.X = np.asarray(X)
+        #self.I = np.asarray(I)
 
     def __init__(self, eid, nid, mass, cid=0, X=None, I=None, comment=''):
         """

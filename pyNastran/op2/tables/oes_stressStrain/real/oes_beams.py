@@ -8,10 +8,6 @@ ints = (int, np.int32)
 from pyNastran.op2.tables.oes_stressStrain.real.oes_objects import (
     StressObject, StrainObject, OES_Object)
 from pyNastran.f06.f06_formatting import write_floats_13e, _eigenvalue_header
-try:
-    import pandas as pd  # type: ignore
-except ImportError:
-    pass
 
 
 class RealBeamArray(OES_Object):
@@ -30,8 +26,8 @@ class RealBeamArray(OES_Object):
         self.nelements = 0  # result specific
         self.nnodes = None
 
-        if not is_sort1:
-            raise NotImplementedError('SORT2')
+        #if not is_sort1:
+            #raise NotImplementedError('SORT2')
             #assert dt is not None
             #self.add = self.add_sort2
             #self.add_new_eid = self.add_new_eid_sort2
@@ -122,6 +118,7 @@ class RealBeamArray(OES_Object):
 
     def build_dataframe(self):
         """creates a pandas dataframe"""
+        import pandas as pd
         headers = self.get_headers()
         element_node = [self.element_node[:, 0], self.element_node[:, 1]]
         if self.nonlinear_factor not in (None, np.nan):

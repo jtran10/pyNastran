@@ -18,6 +18,7 @@ from pyNastran.op2.result_objects.stress_object import (
     get_rod_stress_strain,
     get_bar_stress_strain, get_bar100_stress_strain, get_beam_stress_strain,
     get_plate_stress_strain, get_solid_stress_strain)
+from pyNastran.gui.gui_objects.gui_result import GridPointForceResult
 
 
 class NastranGuiResults(NastranGuiAttributes):
@@ -27,10 +28,37 @@ class NastranGuiResults(NastranGuiAttributes):
     def __init__(self):
         super(NastranGuiResults, self).__init__()
 
-    def _fill_gpforces(self, model):
-        """unused"""
-        pass
-        #[model.grid_point_forces, 'GridPointForces'],
+
+    def _fill_grid_point_forces(self, cases, model, key, icase,
+                                form_dict, header_dict, keys_map):
+        if key not in model.grid_point_forces:
+            print('return icase...')
+            return icase
+        grid_point_forces = model.grid_point_forces[key]
+        case = grid_point_forces
+        if not case.is_real:
+            #raise RuntimeError(grid_point_forces.is_real)
+            return icase
+
+        subcase_id = key[0]
+        title = 'Grid Point Forces'
+        header = 'Grid Point Forces'
+        nastran_res = GridPointForceResult(subcase_id, header, title, grid_point_forces)
+
+        itime = 0
+
+        cases[icase] = (nastran_res, (itime, 'Grid Point Forces'))
+        formii = ('Grid Point Forces', icase, [])
+        form_dict[(key, itime)].append(formii)
+
+        dt = case._times[itime]
+        header = _get_nastran_header(case, dt, itime)
+        header_dict[(key, itime)] = header
+        keys_map[key] = (case.subtitle, case.label,
+                         case.superelement_adaptivity_index, case.pval_step)
+
+        icase += 1
+        return icase
 
     def _fill_op2_oug_oqg(self, cases, model, key, icase,
                           form_dict, header_dict, keys_map):
@@ -1012,7 +1040,22 @@ def print_empty_elements(model, element_ids, is_element_on, log_error):
 
 
 def _get_t123_tnorm(case, nids, nnodes, t123_offset=0):
-    """helper method for _fill_op2_oug_oqg"""
+    """
+    helper method for _fill_op2_oug_oqg
+
+    Parameters
+    ----------
+    case : DisplacementArray, ForceArray, etc.
+        the OP2 result object???
+    nids : (nnodes,) int ndarray
+        the nodes in the model???
+    nnodes : int
+        the number of nodes in the model???
+    t123_offset : int; default=0
+        0 : translations / forces
+        3 : rotations / moments
+
+    """
     assert case.is_sort1, case.is_sort1
 
     itime0 = 0

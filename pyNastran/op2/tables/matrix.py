@@ -5,10 +5,6 @@ from scipy.sparse import coo_matrix  # type: ignore
 import numpy as np
 from pyNastran.op2.op2_interface.write_utils import export_to_hdf5
 from pyNastran.utils import object_attributes, object_methods, unicode_type
-try:
-    import pandas as pd  # type: ignore
-except ImportError:
-    pass
 
 
 
@@ -60,7 +56,7 @@ class Matrix(object):
         self.row_nid = None
         self.row_dof = None
         if not isinstance(name, unicode_type):
-            raise TypeError('name=%r must be a string' % name)
+            raise TypeError('name=%r must be a string; type=%s' % (name, type(name)))
 
     @property
     def shape_str(self):
@@ -84,6 +80,7 @@ class Matrix(object):
 
     def build_dataframe(self):
         """exports the object to pandas format"""
+        import pandas as pd
         matrix = self.data
         if matrix is None:
             return

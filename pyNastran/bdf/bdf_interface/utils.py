@@ -5,9 +5,10 @@ Defines various utilities for BDF parsing including:
 from __future__ import print_function, unicode_literals
 import os
 import sys
-from collections import defaultdict
+import getpass
 import inspect
 import warnings
+from collections import defaultdict
 from typing import List, Union, Dict, Tuple, Optional
 
 from six import StringIO, string_types
@@ -32,7 +33,10 @@ _REMOVED_LINES = [
     '$SETS', '$CONTACT', '$REJECTS', '$REJECT_LINES',
     '$PROPERTIES_MASS', '$MASSES',
 ]
-EXPECTED_HEADER_KEYS_CHECK = ['version', 'encoding', 'punch', 'nnodes', 'nelements', 'dumplines']
+EXPECTED_HEADER_KEYS_CHECK = [
+    'version', 'encoding', 'nnodes', 'nelements',
+    'punch', 'dumplines', 'is_superelements', # booleans
+]
 EXPECTED_HEADER_KEYS_NO_CHECK = ['skip_cards', 'units']
 
 
@@ -432,7 +436,8 @@ def deprecated(old_name, new_name, deprecated_version, levels=None):
         the version the method was first deprecated in
     levels : List[int]
         the deprecation levels to show
-        [1, 2, 3] shows 3 levels up from this function
+        [1, 2, 3] shows 3 levels up from this function (good for classes)
+        None : ???
 
     TODO: turn this into a decorator?
 
@@ -471,10 +476,11 @@ def deprecated(old_name, new_name, deprecated_version, levels=None):
             break
         msg += '  %-25s:%-4s %s\n' % (filename, str(line_no) + ';', line.strip())
 
+    user_name = getpass.getuser()
     if ver_tuple > dep_ver_tuple: # or 'id' in msg:
         # fail
         raise NotImplementedError(msg)
-    else:
+    elif user_name not in ['sdoyle', 'travis']:
         warnings.warn(msg, DeprecationWarning)
 
 

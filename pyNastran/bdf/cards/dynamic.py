@@ -48,6 +48,15 @@ class DELAY(BaseCard):
     +-------+-----+-----------+-----+--------+------+-----+--------+
     """
     type = 'DELAY'
+    _properties = ['node_id1', 'node_id2', 'node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nodes = [1]
+        components = [1]
+        delays = [1.]
+        return DELAY(sid, nodes, components, delays, comment='')
 
     def __init__(self, sid, nodes, components, delays, comment=''):
         """
@@ -196,6 +205,15 @@ class DPHASE(BaseCard):
     +--------+-----+-----------+-----+------+------+-----+-----+
     """
     type = 'DPHASE'
+    _properties = ['node_id1', 'node_id2', 'node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nodes = [1]
+        components = [1]
+        phase_leads = [1.]
+        return DPHASE(sid, nodes, components, phase_leads, comment='')
 
     def __init__(self, sid, nodes, components, phase_leads, comment=''):
         """
@@ -341,6 +359,12 @@ class FREQ(BaseCard):
     """
     type = 'FREQ'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        freqs = [1., 2., 3.]
+        return FREQ(sid, freqs, comment='')
+
     def __init__(self, sid, freqs, comment=''):
         """
         Creates a FREQ card
@@ -430,6 +454,13 @@ class FREQ1(BaseCard):
     """
     type = 'FREQ1'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        f1 = 1.
+        df = 10.
+        return FREQ1(sid, f1, df, ndf=1, comment='')
+
     def __init__(self, sid, f1, df, ndf=1, comment=''):
         """
         Creates a FREQ1 card
@@ -505,6 +536,13 @@ class FREQ2(BaseCard):
     """
     type = 'FREQ2'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        f1 = 1.
+        f2 = 2.
+        return FREQ2(sid, f1, f2, nf=1, comment='')
+
     def __init__(self, sid, f1, f2, nf=1, comment=''):
         """
         Creates a FREQ2 card
@@ -578,6 +616,12 @@ class FREQ3(FREQ):
     +-------+-----+------+-------+--------+-----+---------+
     """
     type = 'FREQ3'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        f1 = 1.
+        return FREQ3(sid, f1, f2=None, freq_type='LINEAR', nef=10, cluster=1.0, comment='')
 
     def __init__(self, sid, f1, f2=None, freq_type='LINEAR', nef=10, cluster=1.0, comment=''):
         """
@@ -665,6 +709,11 @@ class FREQ4(FREQ):
     """
     type = 'FREQ4'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        return FREQ4(sid, f1=0., f2=1e20, fspread=0.1, nfm=3, comment='')
+
     def __init__(self, sid, f1=0., f2=1e20, fspread=0.1, nfm=3, comment=''):
         """
         Creates a FREQ4 card
@@ -743,6 +792,12 @@ class FREQ5(FREQ):
     """
     type = 'FREQ5'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        fractions = [0.1, 0.2, 0.3]
+        return FREQ5(sid, fractions, f1=0., f2=1e20, comment='')
+
     def __init__(self, sid, fractions, f1=0., f2=1e20, comment=''):
         """
         Creates a FREQ5 card
@@ -819,6 +874,16 @@ class NLPARM(BaseCard):
     +--------+--------+------+------+---------+-------+---------+---------+--------+
     """
     type = 'NLPARM'
+    _properties = ['nlparm_id']
+
+    @classmethod
+    def _init_from_empty(cls):
+        nlparm_id = 1
+        return NLPARM(nlparm_id, ninc=None, dt=0.0, kmethod='AUTO', kstep=5,
+                      max_iter=25, conv='PW', int_out='NO', eps_u=0.01,
+                      eps_p=0.01, eps_w=0.01, max_div=3, max_qn=None,
+                      max_ls=4, fstress=0.2, ls_tol=0.5, max_bisect=5,
+                      max_r=20., rtol_b=20., comment='')
 
     def __init__(self, nlparm_id, ninc=None, dt=0.0, kmethod='AUTO', kstep=5,
                  max_iter=25, conv='PW', int_out='NO',
@@ -1066,6 +1131,13 @@ class NLPARM(BaseCard):
 
 class NLPCI(BaseCard):
     type = 'NLPCI'
+    _properties = ['nlpci_id']
+
+    @classmethod
+    def _init_from_empty(cls):
+        nlpci_id = 1
+        return NLPCI(nlpci_id, Type='CRIS', minalr=0.25, maxalr=4.,
+                     scale=0., desiter=12, mxinc=20, comment='')
 
     def __init__(self, nlpci_id, Type='CRIS', minalr=0.25, maxalr=4.,
                  scale=0., desiter=12, mxinc=20, comment=''):
@@ -1172,6 +1244,26 @@ class ROTORD(BaseCard):
     +--------+--------+--------+----------+---------+--------+--------+----------+----------+
     """
     type = 'ROTORD'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        rstart = 1
+        rstep = 1
+        numstep = 1
+        rids = [1]
+        rsets = [1]
+        rspeeds = [1]
+        rcords = [1]
+        w3s = [1]
+        w4s = [1]
+        rforces = [1]
+        brgsets = [1]
+        return ROTORD(sid, rstart, rstep, numstep, rids, rsets, rspeeds, rcords, w3s, w4s, rforces,
+                      brgsets, refsys='ROT', cmout=0.0, runit='RPM', funit='RPM', zstein='NO',
+                      orbeps=1.e-6, roprt=0, sync=1, etype=1, eorder=1.0, threshold=0.02,
+                      maxiter=10, comment='')
+
     def __init__(self, sid, rstart, rstep, numstep,
                  rids, rsets, rspeeds, rcords, w3s, w4s, rforces, brgsets,
                  refsys='ROT', cmout=0.0, runit='RPM', funit='RPM',
@@ -1413,6 +1505,13 @@ class ROTORG(BaseCard):
     +--------+--------+------+------+-----+----+----+----+----+
     """
     type = 'ROTORG'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nids = [2, 3]
+        return ROTORG(sid, nids, comment='')
+
     def __init__(self, sid, nids, comment=''):
         if comment:
             self.comment = comment
@@ -1552,6 +1651,21 @@ class TF(BaseCard):
 
     """
     type = 'TF'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nid0 = 2
+        c = '3'
+        b0 = 1.
+        b1 = 2.
+        b2 = 3.
+        nids = [2, 3]
+        components = ['4', '5']
+        a = []
+        f2 = 2.
+        return TF(sid, nid0, c, b0, b1, b2, nids, components, a, comment='')
+
     def __init__(self, sid, nid0, c, b0, b1, b2, nids, components, a, comment=''):
         if comment:
             self.comment = comment
@@ -1653,6 +1767,14 @@ class TSTEP(BaseCard):
     +-------+------+------+------+------+-----+-----+-----+-----+
     """
     type = 'TSTEP'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        N = 4
+        DT = 1.
+        NO = None
+        return TSTEP(sid, N, DT, NO, comment='')
 
     def __init__(self, sid, N, DT, NO, comment=''):
         """
@@ -1773,6 +1895,14 @@ class TSTEP1(BaseCard):
     """
     type = 'TSTEP1'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        ninc = 4
+        tend = 1.
+        nout = None
+        return TSTEP1(sid, tend, ninc, nout, comment='')
+
     def __init__(self, sid, tend, ninc, nout, comment=''):
         """
         Creates a TSTEP1 card
@@ -1866,6 +1996,18 @@ class TSTEPNL(BaseCard):
     type = 'TSTEPNL'
     allowed_methods = ['AUTO', 'ITER', 'ADAPT', 'SEMI', 'FNT', 'PFNT', # MSC
                        'TSTEP'] # NX
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        ndt = 10
+        dt = 0.1
+        no = 2
+        return TSTEPNL(sid, ndt, dt, no, method='ADAPT', kstep=None,
+                       max_iter=10, conv='PW', eps_u=1.e-2, eps_p=1.e-3,
+                       eps_w=1.e-6, max_div=2, max_qn=10, max_ls=2, fstress=0.2,
+                       max_bisect=5, adjust=5, mstep=None, rb=0.6, max_r=32.,
+                       utol=0.1, rtol_b=20., min_iter=None, comment='')
 
     def __init__(self, sid, ndt, dt, no, method='ADAPT', kstep=None,
                  max_iter=10, conv='PW', eps_u=1.e-2, eps_p=1.e-3,
@@ -2163,6 +2305,14 @@ class TIC(BaseCard):
     entry may not be used for heat transfer analysis.
     """
     type = 'TIC'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nodes = [1, 2]
+        components = [1, 2]
+        return TIC(sid, nodes, components, u0=0., v0=0., comment='')
 
     def __init__(self, sid, nodes, components, u0=0., v0=0., comment=''):
         """

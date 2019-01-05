@@ -123,6 +123,7 @@ class Usm3dIO(object):
                                  is_geometry=False)
 
     def load_usm3d_geometry(self, cogsg_filename, name='main', plot=True):
+        model_name = name
         skip_reading = self.gui._remove_old_geometry(cogsg_filename)
         if skip_reading:
             return
@@ -207,21 +208,19 @@ class Usm3dIO(object):
 
         grid.SetPoints(points)
         grid.Modified()
-        if hasattr(grid, 'Update'):  # pragma: no cover
-            grid.Update()
 
         self.gui.node_ids = node_ids
         self.gui.element_ids = element_ids
 
         # regions/loads
-        self.gui.scalarBar.Modified()
+        self.gui.scalar_bar_actor.Modified()
 
         cases = OrderedDict()
         form = []
         form, cases = self._fill_usm3d_results(cases, form,
                                                bcs, mapbc, bcmap_to_bc_name, loads,
                                                is_geometry=True)
-        self.gui._finish_results_io2(form, cases)
+        self.gui._finish_results_io2(model_name, form, cases)
 
     def clear_usm3d(self):
         """dummy function"""
@@ -251,7 +250,7 @@ class Usm3dIO(object):
     def _fill_usm3d_case(self, cases, form,
                          bcs, mapbc, bcmap_to_bc_name, loads, is_geometry=True):
         """actually fills the sidebar"""
-        self.gui.scalarBar.VisibilityOff()
+        self.gui.scalar_bar_actor.VisibilityOff()
         colormap = self.gui.settings.colormap
 
         subcasemap_id = 1
@@ -318,7 +317,7 @@ class Usm3dIO(object):
                     name = '???'
                 self.gui.log.info('BC=%s Regions=%s name=%r' % (bcnum, regions, name))
 
-            self.gui.scalarBar.VisibilityOn()
+            self.gui.scalar_bar_actor.VisibilityOn()
 
         subcasemap_id = 2
         if len(loads):
@@ -334,5 +333,5 @@ class Usm3dIO(object):
 
             if form0:
                 form.append(('Results', None, form0))
-        self.gui.scalarBar.VisibilityOn()
+        self.gui.scalar_bar_actor.VisibilityOn()
         return form, cases

@@ -1,5 +1,12 @@
 import os
 import unittest
+import matplotlib.pyplot as plt
+
+#try:  # pragma: no cover
+    #plt.figure()
+    #plt.close()
+#except:  # pragma: no cover
+plt.switch_backend('Agg')
 
 import pyNastran
 from pyNastran.utils.log import get_logger2
@@ -51,6 +58,9 @@ class TestF06Utils(unittest.TestCase):
         plot_flutter_f06(f06_filename,
                          plot_vg=True, plot_vg_vf=True, plot_root_locus=True,
                          plot_kfreq_damping=True,
+                         export_zona=True,
+                         export_veas=True,
+                         export_f06=True,
                          show=False, log=log)
 
 if __name__ == '__main__':  # pragma: no cover

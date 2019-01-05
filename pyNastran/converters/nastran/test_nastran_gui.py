@@ -4,11 +4,13 @@ from copy import deepcopy
 import unittest
 
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import vtk
 
 from pyNastran.bdf.cards.test.test_aero import get_zona_model
 from pyNastran.gui.testing_methods import FakeGUIMethods
-from pyNastran.converters.nastran.nastran_io import NastranIO
+from pyNastran.converters.nastran.nastran_io import NastranIO, BDF
 import pyNastran
 #from pyNastran.utils.log import get_logger2
 
@@ -24,6 +26,16 @@ MODEL_PATH = os.path.join(PKG_PATH, '..', 'models')
 
 class TestNastranGUI(unittest.TestCase):
 
+    def test_solid_shell_bar_obj(self):
+        bdf_filename = os.path.join(MODEL_PATH, 'sol_101_elements', 'static_solid_shell_bar.bdf')
+        obj_filename = os.path.join(MODEL_PATH, 'sol_101_elements', 'static_solid_shell_bar.obj')
+        model = BDF()
+        model.read_bdf(bdf_filename)
+        model.save(obj_filename, unxref=True)
+
+        test = NastranGUI()
+        test.load_nastran_geometry(obj_filename)
+
     def test_solid_shell_bar_01(self):
         bdf_filename = os.path.join(MODEL_PATH, 'sol_101_elements', 'static_solid_shell_bar.bdf')
         op2_filename = os.path.join(MODEL_PATH, 'sol_101_elements', 'static_solid_shell_bar.op2')
@@ -33,6 +45,32 @@ class TestNastranGUI(unittest.TestCase):
         test.load_nastran_results(op2_filename)
         test.cycle_results()
         test.on_rcycle_results()
+
+        p1 = [0., 0., 0.]
+        p3 = [1., 0., 0.]
+
+        p2 = [0., 1., 0.]
+        zaxis = [0., 0., 1.]
+        #print('test.result_cases', test.result_cases)
+        #gpforce = test.model.grid_point_forces[1]
+        case, (unused_i, unused_name) = test.result_cases[58]
+        gpforce = case.gpforce_array
+        model_name = 'main'
+        test.shear_moment_torque_obj.plot_shear_moment_torque(
+            model_name, gpforce,
+            p1, p2, p3, zaxis,
+            method='Z-Axis Projection',
+            cid_p1=0, cid_p2=0, cid_p3=0, cid_zaxis=0,
+            nplanes=20, plane_color=None, plane_opacity=0.5,
+            csv_filename=None, show=False)
+        test.cutting_plane_obj.make_cutting_plane(
+            model_name,
+            p1, p2, zaxis,
+            method='Z-Axis Projection',
+            cid_p1=0, cid_p2=0, cid_zaxis=0,
+            ytol=1., plane_atol=1e-5,
+            plane_color=None, plane_opacity=0.5,
+            csv_filename=None, show=False)
 
     def test_solid_shell_bar_02(self):
         bdf_filename = os.path.join(MODEL_PATH, 'sol_101_elements', 'mode_solid_shell_bar.bdf')
@@ -576,6 +614,19 @@ class TestNastranGUI(unittest.TestCase):
         test = NastranGUI()
         test.load_nastran_geometry(op2_filename)
         test.load_nastran_results(op2_filename)
+
+    def test_gui_superelement_1(self):
+        """tests flyswatter"""
+        bdf_filename = os.path.join(MODEL_PATH, 'superelements', 'flyswatter', 'flyswatter_renumber.bdf')
+        test = NastranGUI()
+        test.load_nastran_geometry(bdf_filename)
+        #test.load_nastran_results(op2_filename)
+
+    def test_gui_superelement_2(self):
+        """tests superelement mirror/shift/renumber"""
+        bdf_filename = os.path.join(MODEL_PATH, 'superelements', 'see103q4.bdf')
+        test = NastranGUI()
+        test.load_nastran_geometry(bdf_filename)
 
     def test_gui_dvprel(self):
         """tests dvprel"""

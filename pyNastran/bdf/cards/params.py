@@ -10,6 +10,24 @@ from pyNastran.bdf.bdf_interface.assign_type import (
 from pyNastran.bdf.field_writer_8 import print_card_8
 from pyNastran.bdf.field_writer_16 import print_card_16
 
+INT_WORDS_1 = [
+    'POST', 'OPPHIPA', 'OPPHIPB', 'GRDPNT', 'RPOSTS1', 'BAILOUT',
+    'COUPMASS', 'CURV', 'INREL', 'MAXRATI', 'OG',
+    'S1AM', 'S1M', 'DDRMM', 'MAXIT', 'PLTMSG', 'LGDISP', 'NLDISP',
+    'OUNIT2M', 'RESCOMP', 'PDRMSG', 'LMODES', 'USETPRT',]
+#float_words_1 = [
+    #b'K6ROT', b'WTMASS', b'SNORM', b'PATVER', b'MAXRATIO', b'EPSHT',
+    #b'SIGMA', b'TABS']
+STR_WORDS_1 = [
+    'POSTEXT', 'PRTMAXIM', 'AUTOSPC', 'OGEOM', 'PRGPST',
+    'RESVEC', 'RESVINER', 'ALTRED', 'OGPS', 'OIBULK', 'OMACHPR',
+    'UNITSYS', 'F56', 'OUGCORD', 'OGEM', 'EXTSEOUT',]
+INT_STR_WORDS_1 = INT_WORDS_1 + STR_WORDS_1
+
+SMALL_FIELD_PARAMS = [
+    'ACOUT', 'ACOWEAK', 'ACSYM', 'ADJMETH', 'AESMAXIT', 'AESMETH', 'ADSTAT',
+    'MAXLINES'] #+ INT_WORDS_1 + STR_WORDS_1
+
 
 class PARAM(BaseCard):
     type = 'PARAM'
@@ -25,6 +43,12 @@ class PARAM(BaseCard):
                 raise IndexError(msg)
         else:
             raise KeyError('Field %r=%r is an invalid %s entry.' % (n, value, self.type))
+
+    @classmethod
+    def _init_from_empty(cls):
+        key = 'POST'
+        values = -1
+        return PARAM(key, values, comment='')
 
     def __init__(self, key, values, comment=''):
         """
@@ -120,24 +144,6 @@ class PARAM(BaseCard):
             assert len(card) <= 3, 'len(PARAM card)=%i card=%r' % (len(card), card)
         else:
             assert len(card) <= 4, 'len(PARAM card)=%i card=%r' % (len(card), card)
-        return PARAM(key, values, comment=comment)
-
-    @classmethod
-    def add_op2_data(cls, data, comment=''):
-        """
-        Creates a PARAM card.
-
-        Parameters
-        ----------
-        data : List[int/float/str]; default=None
-            list of PARAM entries not including 'PARAM';
-            intended to be used by OP2 Reader
-        comment : str; default=''
-            optional string
-        """
-        card = BDFCard(['PARAM'] + data)
-        key = data[0]
-        values = data[1:]
         return PARAM(key, values, comment=comment)
 
     def update_values(self, value1=None, value2=None):
@@ -240,7 +246,10 @@ class PARAM(BaseCard):
 
     def write_card(self, size=8, is_double=False):
         card = self.raw_fields()
-        if size == 8:
-            return self.comment + print_card_8(card)  # works
-        return self.comment + print_card_16(card)
+        if self.key in INT_STR_WORDS_1:
+            return '%sPARAM   %8s%8s\n' % (
+                self.comment, self.key, self.values[0])
 
+        if size == 8 or self.key in SMALL_FIELD_PARAMS:
+            return self.comment + print_card_8(card)
+        return self.comment + print_card_16(card)

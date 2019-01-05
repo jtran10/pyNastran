@@ -41,6 +41,13 @@ class RANDPS(RandomLoad):
     """
     type = 'RANDPS'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        j = 2
+        k = 3
+        return RANDPS(sid, j, k, x=0., y=0., tid=0, comment='')
+
     def __init__(self, sid, j, k, x=0., y=0., tid=0, comment=''):
         """
         Creates a RANDPS card
@@ -163,6 +170,14 @@ class RANDPS(RandomLoad):
 class RANDT1(RandomLoad):
     type = 'RANDT1'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        n = 10
+        t0 = 1
+        tmax = 1.
+        return RANDT1(sid, n, t0, tmax, comment='')
+
     def __init__(self, sid, n, t0, tmax, comment=''):
         """
         Creates a RANDT1 card
@@ -216,6 +231,24 @@ class RANDT1(RandomLoad):
         tmax = double(card, 4, 'tmax')
         assert len(card) <= 5, 'len(RANDT1 card) = %i\ncard=%s' % (len(card), card)
         return RANDT1(sid, n, t0, tmax, comment=comment)
+
+    def cross_reference(self, model):
+        """
+        Cross links the card so referenced cards can be extracted directly
+
+        Parameters
+        ----------
+        model : BDF()
+            the BDF object
+
+        """
+        pass
+
+    def safe_cross_reference(self, model, xref_errors):
+        pass
+
+    def uncross_reference(self):
+        pass
 
     def get_loads(self):
         return [self]

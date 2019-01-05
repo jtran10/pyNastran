@@ -9,7 +9,6 @@ import numpy as np
 from pyNastran.bdf.bdf_interface.bdf_card import BDFCard
 from pyNastran.utils import object_attributes, object_methods
 from pyNastran.utils.numpy_utils import integer_types
-from pyNastran.utils.numpy_utils import integer_types
 from pyNastran.bdf.field_writer import print_card
 from pyNastran.bdf.field_writer_8 import is_same
 from pyNastran.bdf.bdf_interface.assign_type import interpret_value
@@ -484,7 +483,7 @@ class Element(BaseCard):
     def _node_ids(self, nodes=None, allow_empty_nodes=False, msg=''):
         # type: (Optional[List[Any]], bool, str) -> List[int]
         """returns nodeIDs for repr functions"""
-        return _node_ids(self, nodes, allow_empty_nodes, msg)
+        return _node_ids(self, nodes=nodes, allow_empty_nodes=allow_empty_nodes, msg=msg)
 
     def prepare_node_ids(self, nids, allow_empty_nodes=False):
         # type: (List[int], bool) -> None
@@ -496,7 +495,7 @@ class Element(BaseCard):
         # type: (bool) -> None
         if allow_empty_nodes:
             # only put valid nodes in here
-            nids2 = [nid for nid in self.nodes ]
+            nids2 = [nid for nid in self.nodes]
             if len(nids2) == 0:
                 msg = '%s requires at least one node id be specified; node_ids=%s' % (
                     self.type, nids2)
@@ -523,7 +522,7 @@ class Element(BaseCard):
         for nid in nodes:
             if isinstance(nid, integer_types):
                 nodes2.append(nid)
-            elif nid is None and allow_empty_nodes:
+            elif nid is None and allow_empty_nodes or np.isnan(nid):
                 nodes2.append(None)
             else:  # string???
                 #nodes.append(int(nid))

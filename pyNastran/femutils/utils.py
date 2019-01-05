@@ -45,6 +45,15 @@ def unique2d(a):
     #uniq = unique(data.view(data.dtype.descr * data.shape[1]))
     #return uniq.view(data.dtype).reshape(-1, data.shape[1])
 
+def duplicates(ids):
+    """finds the duplicate ids"""
+    counts = np.bincount(ids)
+    return np.where(counts > 1)[0]
+
+def is_monotonic(int_array):
+    """is the array monotonic?"""
+    return np.all(int_array[1:] >= int_array[:-1])
+
 def unique_rows(A, return_index=False, return_inverse=False):
     """
     Similar to MATLAB's unique(A, 'rows'), this returns B, I, J
@@ -212,3 +221,17 @@ def perpendicular_vector2d(v_array):
     vout[is_3d, :2] = 1.
     vout[is_3d, 2] = -1. * (v[is_3d, 0] + v[is_3d, 1]) / v[is_3d, 2]
     return vout
+
+def underflow_norm(x, ord=None, axis=None, keepdims=False):
+    """see numpy.linalg.norm"""
+    try:
+        normi = np.linalg.norm(x, axis=axis)
+    except FloatingPointError:
+        # the dreaded underflow
+        if x.dtype == np.float32:
+            x = x.astype('float64')
+            normi = np.linalg.norm(x, axis=axis)
+        else:  # pragma: no cover
+            # the next step would be to nan the min=max depending on the axis
+            raise
+    return normi

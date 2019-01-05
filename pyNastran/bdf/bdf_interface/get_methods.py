@@ -315,7 +315,7 @@ class GetMethods(BDFAttributes):
         msg : str
             additional message to print when failing
         """
-        assert isinstance(sid, integer_types), 'sid=%s is not an integer\n' % sid
+        assert isinstance(sid, integer_types), 'sid=%s is not an integer; type=%s\n' % (sid, type(sid))
         if consider_load_combinations and sid in self.load_combinations:
             load = self.load_combinations[sid]
         elif sid in self.loads:
@@ -732,10 +732,10 @@ class GetMethods(BDFAttributes):
     def CMethod(self, sid, msg=''):
         """gets a METHOD (EIGC)"""
         try:
-            return self.cmethods[sid]
+            return self.cMethods[sid]
         except KeyError:
             raise KeyError('sid=%s not found%s.  Allowed CMETHODs=%s'
-                           % (sid, msg, np.unique(list(self.cmethods.keys()))))
+                           % (sid, msg, np.unique(list(self.cMethods.keys()))))
 
     #--------------------
     # TABLE CARDS

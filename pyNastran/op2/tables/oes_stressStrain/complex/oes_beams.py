@@ -2,10 +2,6 @@ from __future__ import (nested_scopes, generators, division, absolute_import,
                         print_function, unicode_literals)
 import numpy as np
 from numpy import zeros
-try:
-    import pandas as pd  # type: ignore
-except ImportError:
-    pass
 
 from pyNastran.op2.tables.oes_stressStrain.real.oes_objects import (
     StressObject, StrainObject, OES_Object)
@@ -24,11 +20,11 @@ class ComplexBeamArray(OES_Object):
         self.nelements = 0  # result specific
         #self.cid = {}  # gridGauss
 
-        if is_sort1:
-            #sort1
-            pass
-        else:
-            raise NotImplementedError('SORT2')
+        #if is_sort1:
+            ##sort1
+            #pass
+        #else:
+            #raise NotImplementedError('SORT2')
 
     def _reset_indices(self):
         self.itotal = 0

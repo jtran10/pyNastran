@@ -90,6 +90,73 @@ class CBEAM(LineElement):
                         n, value, self.type)
                     raise KeyError(msg)
 
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, eids):
+        """exports the elements in a vectorized way"""
+        encoding = model._encoding
+        #comments = []
+        pids = []
+        nodes = []
+
+        x = []
+        g0 = []
+        offt = []
+        bit = []
+
+        pa = []
+        pb = []
+        wa = []
+        wb = []
+        sa = []
+        sb = []
+        nan = np.full(3, np.nan)
+        for eid in eids:
+            element = model.elements[eid]
+            #comments.append(element.comment)
+            pids.append(element.pid)
+            nodes.append(element.nodes)
+            if element.g0 is None:
+                x.append(element.x)
+                g0.append(-1)
+            else:
+                x.append(nan)
+                g0.append(element.g0)
+
+            if element.bit is not None:
+                bit.append(element.bit)
+                offt.append(b'')
+            else:
+                bit.append(np.nan)
+                offt.append(element.offt.encode(encoding))
+
+
+            pa.append(element.pa)
+            pb.append(element.pb)
+            sa.append(element.sa)
+            sb.append(element.sb)
+            wa.append(element.wa)
+            wb.append(element.wb)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('nodes', data=nodes)
+        h5_file.create_dataset('pid', data=pids)
+        #print('x =', x)
+        #print('g0 =', g0)
+        h5_file.create_dataset('x', data=x)
+        h5_file.create_dataset('g0', data=g0)
+        h5_file.create_dataset('offt', data=offt)
+        h5_file.create_dataset('bit', data=bit)
+
+        h5_file.create_dataset('pa', data=pa)
+        h5_file.create_dataset('pb', data=pb)
+
+        h5_file.create_dataset('sa', data=sa)
+        h5_file.create_dataset('sb', data=sb)
+
+        h5_file.create_dataset('wa', data=wa)
+        h5_file.create_dataset('wb', data=wb)
+
+
     def __init__(self, eid, pid, nids, x, g0, offt='GGG', bit=None,
                  pa=0, pb=0, wa=None, wb=None, sa=0, sb=0, comment=''):
         """
@@ -800,6 +867,14 @@ class BEAMOR(BaseCard):
         self.offt = offt
 
     @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        is_g0 = True
+        g0 = 1
+        x = None
+        return BEAMOR(pid, is_g0, g0, x, offt='GGG', comment='')
+
+    @classmethod
     def add_card(cls, card, comment=''):
         pid = integer_or_blank(card, 2, 'pid')
 
@@ -826,3 +901,9 @@ class BEAMOR(BaseCard):
 
     def raw_fields(self):
         return ['BEAMOR', None, self.pid, None, None] + list(self.x) + [self.offt]
+
+    def write_card(self, size=8, is_double=False):
+        card = self.repr_fields()
+        if size == 8:
+            return self.comment + print_card_8(card)
+        return self.comment + print_card_16(card)

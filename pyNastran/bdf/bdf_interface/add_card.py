@@ -15,7 +15,7 @@ import numpy as np
 from pyNastran.bdf.field_writer_8 import print_card_8
 from pyNastran.bdf.bdf_interface.add_methods import AddMethods
 
-from pyNastran.bdf.cards.elements.elements import CFAST, CGAP, CRAC2D, CRAC3D, PLOTEL
+from pyNastran.bdf.cards.elements.elements import CFAST, CGAP, CRAC2D, CRAC3D, PLOTEL, GENEL
 from pyNastran.bdf.cards.properties.properties import PFAST, PGAP, PRAC2D, PRAC3D
 from pyNastran.bdf.cards.properties.solid import PLSOLID, PSOLID, PIHEX, PCOMPS
 from pyNastran.bdf.cards.msgmesh import CGEN
@@ -32,6 +32,7 @@ from pyNastran.bdf.cards.elements.solid import (
 from pyNastran.bdf.cards.elements.rigid import RBAR, RBAR1, RBE1, RBE2, RBE3, RROD, RSPLINE, RSSCON
 
 from pyNastran.bdf.cards.axisymmetric.axisymmetric import (
+    AXIF, RINGFL,
     AXIC, RINGAX, POINTAX, CCONEAX, PCONEAX, PRESAX, TEMPAX,)
 from pyNastran.bdf.cards.elements.axisymmetric_shells import (
     CTRAX3, CTRAX6, CTRIAX, CTRIAX6, CQUADX, CQUADX4, CQUADX8)
@@ -49,8 +50,8 @@ from pyNastran.bdf.cards.elements.damper import (CVISC, CDAMP1, CDAMP2, CDAMP3, 
                                                  CDAMP5)
 from pyNastran.bdf.cards.properties.damper import PVISC, PDAMP, PDAMP5, PDAMPT
 from pyNastran.bdf.cards.elements.rods import CROD, CONROD, CTUBE
-from pyNastran.bdf.cards.elements.bars import CBAR, CBARAO, CBEAM3, CBEND#, BAROR
-from pyNastran.bdf.cards.elements.beam import CBEAM#, BEAMOR
+from pyNastran.bdf.cards.elements.bars import CBAR, CBARAO, CBEAM3, CBEND, BAROR
+from pyNastran.bdf.cards.elements.beam import CBEAM, BEAMOR
 from pyNastran.bdf.cards.properties.rods import PROD, PTUBE
 from pyNastran.bdf.cards.properties.bars import PBAR, PBARL, PBRSECT, PBEND, PBEAM3
 from pyNastran.bdf.cards.properties.beam import PBEAM, PBEAML, PBCOMP, PBMSECT
@@ -68,31 +69,37 @@ from pyNastran.bdf.cards.dynamic import (
     DELAY, DPHASE, FREQ, FREQ1, FREQ2, FREQ3, FREQ4, FREQ5,
     TSTEP, TSTEP1, TSTEPNL, NLPARM, NLPCI, TF, ROTORG, ROTORD, TIC)
 from pyNastran.bdf.cards.loads.loads import (
-    LSEQ, SLOAD, DAREA, RFORCE, RFORCE1, SPCD, LOADCYN, DEFORM)
+    LSEQ, SLOAD, DAREA, RFORCE, RFORCE1, SPCD, DEFORM, LOADCYN)
 from pyNastran.bdf.cards.loads.dloads import ACSRCE, DLOAD, TLOAD1, TLOAD2, RLOAD1, RLOAD2
 from pyNastran.bdf.cards.loads.static_loads import (LOAD, GRAV, ACCEL, ACCEL1, FORCE,
                                                     FORCE1, FORCE2, MOMENT, MOMENT1, MOMENT2,
                                                     PLOAD, PLOAD1, PLOAD2, PLOAD4, PLOADX1,
                                                     GMLOAD)
-from pyNastran.bdf.cards.loads.random_loads import (
-    RANDPS, RANDT1)
+from pyNastran.bdf.cards.loads.random_loads import RANDPS, RANDT1
 
 from pyNastran.bdf.cards.materials import (MAT1, MAT2, MAT3, MAT4, MAT5,
                                            MAT8, MAT9, MAT10, MAT11, MAT3D,
-                                           MATG, MATHE, MATHP, CREEP, NXSTRAT, EQUIV)
+                                           MATG, MATHE, MATHP, CREEP, EQUIV,
+                                           NXSTRAT)
 from pyNastran.bdf.cards.material_deps import (
     MATT1, MATT2, MATT3, MATT4, MATT5, MATT8, MATT9, MATS1)
 
 from pyNastran.bdf.cards.methods import EIGB, EIGC, EIGR, EIGP, EIGRL
-from pyNastran.bdf.cards.nodes import GRID, GRDSET, SPOINTs, EPOINTs, POINT, SEQGP
+from pyNastran.bdf.cards.nodes import GRID, GRDSET, SPOINTs, EPOINTs, POINT, SEQGP, GRIDB
+
 from pyNastran.bdf.cards.aero.aero import (
-    AECOMP, AEFACT, AELINK, AELIST, AEPARM, AESURF, AESURFS,
+    AECOMP, AECOMPL, AEFACT, AELINK, AELIST, AEPARM, AESURF, AESURFS,
     CAERO1, CAERO2, CAERO3, CAERO4, CAERO5,
     PAERO1, PAERO2, PAERO3, PAERO4, PAERO5,
     MONPNT1, MONPNT2, MONPNT3,
     SPLINE1, SPLINE2, SPLINE3, SPLINE4, SPLINE5)
 from pyNastran.bdf.cards.aero.static_loads import AESTAT, AEROS, CSSCHD, TRIM, TRIM2, DIVERG
 from pyNastran.bdf.cards.aero.dynamic_loads import AERO, FLFACT, FLUTTER, GUST, MKAERO1, MKAERO2
+from pyNastran.bdf.cards.aero.zona import (
+    #ACOORD, AEROZ, AESURFZ, BODY7, CAERO7, MKAEROZ, PAFOIL7, PANLST1, PANLST3,
+    #SEGMESH, SPLINE1_ZONA, SPLINE2_ZONA, SPLINE3_ZONA, TRIMLNK, TRIMVAR, TRIM_ZONA,
+    ZONA)
+
 from pyNastran.bdf.cards.optimization import (
     DCONADD, DCONSTR, DESVAR, DDVAL, DOPTPRM, DLINK,
     DRESP1, DRESP2, DRESP3,
@@ -100,11 +107,16 @@ from pyNastran.bdf.cards.optimization import (
     DVMREL1, DVMREL2,
     DVPREL1, DVPREL2,
     DVGRID, DSCREEN)
+from pyNastran.bdf.cards.superelements import (
+    SEBNDRY, SEBULK, SECONCT, SEELT, SEEXCLD,
+    SELABEL, SELOAD, SELOC, SEMPLN, SENQSET, SETREE,
+    CSUPER, CSUPEXT,
+)
 from pyNastran.bdf.cards.bdf_sets import (
     ASET, BSET, CSET, QSET, USET,
     ASET1, BSET1, CSET1, QSET1, USET1,
     OMIT1,
-    SET1, SET3, #RADSET,
+    SET1, SET3,
     SEBSET, SECSET, SEQSET, # SEUSET
     SEBSET1, SECSET1, SEQSET1, # SEUSET1
     SESET, #SEQSEP,
@@ -119,18 +131,560 @@ from pyNastran.bdf.cards.thermal.thermal import (CHBDYE, CHBDYG, CHBDYP, PCONV, 
 from pyNastran.bdf.cards.thermal.radiation import RADM, RADBC, RADCAV, RADLST, RADMTX, VIEW, VIEW3D
 from pyNastran.bdf.cards.bdf_tables import (TABLED1, TABLED2, TABLED3, TABLED4,
                                             TABLEM1, TABLEM2, TABLEM3, TABLEM4,
-                                            TABLES1, TABDMP1, TABLEST, TABRND1, TABRNDG,
+                                            TABLES1, TABDMP1, TABLEST, TABLEHT, TABLEH1,
+                                            TABRND1, TABRNDG,
                                             DTABLE)
-from pyNastran.bdf.cards.contact import BCRPARA, BCTADD, BCTSET, BSURF, BSURFS, BCTPARA, BCONP, BLSEG
+from pyNastran.bdf.cards.contact import (
+    BCRPARA, BCTADD, BCTSET, BSURF, BSURFS, BCTPARA, BCONP, BLSEG)
 from pyNastran.utils.numpy_utils import integer_string_types
-from pyNastran.bdf.cards.superelements import (
-    CSUPER, CSUPEXT, SEBNDRY, SECONCT, SEELT, SEEXCLD, SELABEL, SELOAD,
-    SELOC, SEMPLN, SENQSET, SETREE)
+
+CARD_MAP = {
+    #'=' : Crash, None),
+
+    'SETREE' : SETREE,
+    'SENQSET' : SENQSET,
+    'SEBULK' : SEBULK,
+    'SEBNDRY' : SEBNDRY,
+    'SEELT' : SEELT,
+    'SELOC' : SELOC,
+    'SEMPLN' : SEMPLN,
+    'SECONCT' : SECONCT,
+    'SELABEL' : SELABEL,
+    'SEEXCLD' : SEEXCLD,
+    'CSUPER' : CSUPER,
+    'CSUPEXT' : CSUPEXT,
+    'SELOAD' : SELOAD,
+
+    #'ACMODL' : Crash, None),
+    #'CHACAB' : Crash, None),
+    #'PACABS' : Crash, None),
+    #'PANEL' : Crash, None),
+
+    'BCONP' : BCONP,
+    'BLSEG' : BLSEG,
+    #'BFRIC' : Crash, None),
+
+    #'BGADD', 'BGSET', 'BOLT', 'BOLTFOR'
+    #'BGADD' : Crash, None),
+    #'BGSET' : Crash, None),
+    #'BOLT' : Crash, None),
+    #'BOLTFOR' : Crash, None),
+
+    #'CBEAR', 'PBEAR', 'ROTORB',
+    #'CBEAR' : Crash, None),
+    #'PBEAR' : Crash, None),
+    #'ROTORB' : Crash, None),
+
+    #'SWLDPRM' : Crash, None),
+
+    #'CWELD' : Crash, None),
+    #'PWELD' : Crash, None),
+    #'PWSEAM' : Crash, None),
+    #'CWSEAM' : Crash, None),
+    #'CSEAM' : Crash, None),
+    #'PSEAM' : Crash, None),
+
+    #'DVSHAP' : Crash, None),
+    #'BNDGRID' : Crash, None),
+
+    #'CYSYM' : Crash, None),
+    #'CYJOIN' : Crash, None),
+    #'MODTRAK' : Crash, None),
+    #'TEMPP1' : Crash, None),
+    #'TEMPRB' : Crash, None),
+    #'DSCONS' : Crash, None),
+    #'DVAR' : Crash, None),
+    #'DVSET' : Crash, None),
+    #'DYNRED' : Crash, None),
+    #'BNDFIX' : Crash, None),
+    #'BNDFIX1' : Crash, None),
+
+    #'AEFORCE' : Crash, None),
+    #'UXVEC' : Crash, None),
+    #'GUST2' : Crash, None),
+
+    #'RADBND' : RADBND,
+
+
+    # nodes
+    'GRDSET' : GRDSET,
+    'GRID' : GRID,
+    'SPOINT' : SPOINTs,
+    'EPOINT' : EPOINTs,
+    'RINGAX' : RINGAX,
+    'POINTAX' : POINTAX,
+    'POINT' : POINT,
+    'SEQGP' : SEQGP,
+    'GRIDB' : GRIDB,
+
+    'PARAM' : PARAM,
+
+    'CORD1R' : CORD1R,
+    'CORD1C' : CORD1C,
+    'CORD1S' : CORD1S,
+    'CORD2R' : CORD2R,
+    'CORD2C' : CORD2C,
+    'CORD2S' : CORD2S,
+
+    # msgmesh
+    'GMCORD' : GMCORD,
+    'CGEN' : CGEN,
+
+    'PLOTEL' : PLOTEL,
+    'RINGFL' : RINGFL,
+    'TEMPAX' : TEMPAX,
+    'TEMPD' : TEMPD,
+
+    'CONROD' : CONROD,
+    'CROD' : CROD,
+    'PROD' : PROD,
+    'CTUBE' : CTUBE,
+    'PTUBE' : PTUBE,
+
+    'CBAR' : CBAR,
+    'BAROR' : BAROR,
+    'CBARAO' : CBARAO,
+    'PBAR' : PBAR,
+    'PBARL' : PBARL,
+    'PBRSECT' : PBRSECT,
+
+    'CBEAM' : CBEAM,
+    'BEAMOR' : BEAMOR,
+    'PBEAM' : PBEAM,
+    'PBEAML' : PBEAML,
+    'PBCOMP' : PBCOMP,
+    'PBMSECT' : PBMSECT,
+
+    'CBEAM3' : CBEAM3,
+    'PBEAM3' : PBEAM3,
+
+    'CBEND' : CBEND,
+    'PBEND' : PBEND,
+
+    'CTRIA3' : CTRIA3,
+    'CQUAD4' : CQUAD4,
+    'CQUAD' : CQUAD,
+    'CQUAD8' : CQUAD8,
+    'CQUADX' : CQUADX,
+    'CQUADX4' : CQUADX4,
+    'CQUADX8' : CQUADX8,
+    'CQUADR' : CQUADR,
+    'CTRIA6' : CTRIA6,
+    'CTRIAR' : CTRIAR,
+    'CTRAX3' : CTRAX3,
+    'CTRAX6' : CTRAX6,
+    'CTRIAX' : CTRIAX,
+    'CTRIAX6' : CTRIAX6,
+    'SNORM' : SNORM,
+    'PCOMP' : PCOMP,
+    'PCOMPG' : PCOMPG,
+    'PSHELL' : PSHELL,
+    'PLPLANE' : PLPLANE,
+
+    'CPLSTN3' : CPLSTN3,
+    'CPLSTN4' : CPLSTN4,
+    'CPLSTN6' : CPLSTN6,
+    'CPLSTN8' : CPLSTN8,
+    'CPLSTS3' : CPLSTS3,
+    #'CPLSTS4' : CPLSTS4,
+    #'CPLSTS6' : CPLSTS6,
+    #'CPLSTS8' : CPLSTS8,
+    'PPLANE' : PPLANE,
+
+    'CSHEAR' : CSHEAR,
+    'PSHEAR' : PSHEAR,
+
+    'CIHEX1' : CIHEX1,
+    'CIHEX2' : CIHEX2,
+    'PIHEX' : PIHEX,
+    'PSOLID' : PSOLID,
+    'PLSOLID' : PLSOLID,
+    'PCOMPS' : PCOMPS,
+
+    'CTETRA4' : CTETRA4,
+    'CPENTA6' : CPENTA6,
+    'CPYRAM5' : CPYRAM5,
+    'CHEXA8' : CHEXA8,
+    'CTETRA10' : CTETRA10,
+    'CPENTA15' : CPENTA15,
+    'CPYRAM13' : CPYRAM13,
+    'CHEXA20' : CHEXA20,
+
+    'CELAS1' : CELAS1,
+    'CELAS2' : CELAS2,
+    'CELAS3' : CELAS3,
+    'CELAS4' : CELAS4,
+    'CVISC' : CVISC,
+    'PVISC' : PVISC,
+    'PELAS' : PELAS,
+    'PELAST' : PELAST,
+
+    'CDAMP1' : CDAMP1,
+    'CDAMP2' : CDAMP2,
+    'CDAMP3' : CDAMP3,
+    'CDAMP4' : CDAMP4,
+    'PDAMP' : PDAMP,
+    'CDAMP5' : CDAMP5,
+    'PDAMP5' : PDAMP5,
+
+    'CFAST' : CFAST,
+    'PFAST' : PFAST,
+
+    'CGAP' : CGAP,
+    'PGAP' : PGAP,
+
+    'CBUSH' : CBUSH,
+    'CBUSH1D' : CBUSH1D,
+    'CBUSH2D' : CBUSH2D,
+    'PBUSH' : PBUSH,
+    'PBUSH1D' : PBUSH1D,
+
+    'CRAC2D' : CRAC2D,
+    'PRAC2D' : PRAC2D,
+
+    'CRAC3D' : CRAC3D,
+    'PRAC3D' : PRAC3D,
+
+    'PDAMPT' : PDAMPT,
+    'PBUSHT' : PBUSHT,
+
+    'GENEL' : GENEL,
+    #--------------------------------------
+
+    'CCONEAX' : CCONEAX,
+    'PCONEAX' : PCONEAX,
+    'AXIC' : AXIC,
+    'AXIF' : AXIF,
+
+    'RBAR' : RBAR,
+    'RBAR1' : RBAR1,
+    'RBE1' : RBE1,
+    'RBE2' : RBE2,
+    'RBE3' : RBE3,
+    'RROD' : RROD,
+    'RSPLINE' : RSPLINE,
+    'RSSCON' : RSSCON,
+
+
+    ## there is no MAT6 or MAT7
+    'MAT1' : MAT1,
+    'MAT2' : MAT2,
+    'MAT3' : MAT3,
+    'MAT8' : MAT8,
+    'MAT9' : MAT9,
+    'MAT10' : MAT10,
+    'MAT11' : MAT11,
+    'MAT3D' : MAT3D,
+    'EQUIV' : EQUIV,
+    'MATG' : MATG,
+
+    'MATHE' : MATHE,
+    'MATHP' : MATHP,
+    'MAT4' : MAT4,
+    'MAT5' : MAT5,
+
+    'MATS1' : MATS1,
+    #'MATS3' : MATS3,
+    #'MATS8' : MATS8,
+    'MATT1' : MATT1,
+    'MATT2' : MATT2,
+    'MATT3' : MATT3,
+    'MATT4' : MATT4,
+    'MATT5' : MATT5,
+    'MATT8' : MATT8,
+    'MATT9' : MATT9,
+    'NXSTRAT' : NXSTRAT,
+
+    'CREEP' : CREEP,
+
+    'NSMADD' : NSMADD,
+    'NSM' : NSM,
+    'NSM1' : NSM1,
+    'NSML' : NSML,
+    'NSML1' : NSML1,
+
+    'CONM1' : CONM1,
+    'CONM2' : CONM2,
+    'PMASS' : PMASS,
+    'CMASS1' : CMASS1,
+    'CMASS2' : CMASS2,
+    'CMASS3' : CMASS3,
+    'CMASS4' : CMASS4,
+    # CMASS4 - added later because documentation is wrong
+
+    'MPC' : MPC,
+    'MPCADD' : MPCADD,
+
+    'SPC' : SPC,
+    'SPC1' : SPC1,
+    'SPCOFF' : SPCOFF,
+    'SPCOFF1' : SPCOFF1,
+    'SPCAX' : SPCAX,
+    'SPCADD' : SPCADD,
+    'GMSPC' : GMSPC,
+
+    'SESUP' : SESUP,
+    'SUPORT' : SUPORT,
+    'SUPORT1' : SUPORT1,
+
+    'FORCE' : FORCE,
+    'FORCE1' : FORCE1,
+    'FORCE2' : FORCE2,
+    'MOMENT' : MOMENT,
+    'MOMENT1' : MOMENT1,
+    'MOMENT2' : MOMENT2,
+
+    'LSEQ' : LSEQ,
+    'LOAD' : LOAD,
+    'LOADCYN' : LOADCYN,
+
+    'GRAV' : GRAV,
+    'ACCEL' : ACCEL,
+    'ACCEL1' : ACCEL1,
+    'PLOAD' : PLOAD,
+    'PLOAD1' : PLOAD1,
+    'PLOAD2' : PLOAD2,
+    'PLOAD4' : PLOAD4,
+    'PLOADX1' : PLOADX1,
+    'RFORCE' : RFORCE,
+    'RFORCE1' : RFORCE1,
+    'SLOAD' : SLOAD,
+    'GMLOAD' : GMLOAD,
+    'SPCD' : SPCD,
+    'QVOL' : QVOL,
+    'PRESAX' : PRESAX,
+    'DEFORM' : DEFORM,
+
+    'DLOAD' : DLOAD,
+
+    'ACSRCE' : ACSRCE,
+    'TLOAD1' : TLOAD1,
+    'TLOAD2' : TLOAD2,
+    'RLOAD1' : RLOAD1,
+    'RLOAD2' : RLOAD2,
+    'RANDPS' : RANDPS,
+    'RANDT1' : RANDT1,
+    'QVECT' : QVECT,
+    'TEMPBC' : TEMPBC,
+
+    'FREQ' : FREQ,
+    'FREQ1' : FREQ1,
+    'FREQ2' : FREQ2,
+    'FREQ3' : FREQ3,
+    'FREQ4' : FREQ4,
+    'FREQ5' : FREQ5,
+
+    'DOPTPRM' : DOPTPRM,
+    'DEQATN' : DEQATN,
+    'DESVAR' : DESVAR,
+    'BCTSET' : BCTSET,
+
+    'TEMP' : TEMP,
+    'QBDY1' : QBDY1,
+    'QBDY2' : QBDY2,
+    'QBDY3' : QBDY3,
+    'QHBDY' : QHBDY,
+    'PHBDY' : PHBDY,
+
+    'CHBDYE' : CHBDYE,
+    'CHBDYG' : CHBDYG,
+    'CHBDYP' : CHBDYP,
+    'CONV' : CONV,
+    'PCONV' : PCONV,
+    'CONVM' : CONVM,
+    'PCONVM' : PCONVM,
+
+    'VIEW' : VIEW,
+    'VIEW3D' : VIEW3D,
+
+    # aero
+    'AECOMP' : AECOMP,
+    'AECOMPL' : AECOMPL,
+    'AEFACT' : AEFACT,
+    'AELINK' : AELINK,
+    'AELIST' : AELIST,
+    'AEPARM' : AEPARM,
+    'AESTAT' : AESTAT,
+    'AESURF' : AESURF,
+    'AESURFS' : AESURFS,
+
+    'CAERO1' : CAERO1,
+    'CAERO2' : CAERO2,
+    'CAERO3' : CAERO3,
+    'CAERO4' : CAERO4,
+    'CAERO5' : CAERO5,
+
+    'PAERO1' : PAERO1,
+    'PAERO2' : PAERO2,
+    'PAERO3' : PAERO3,
+    'PAERO4' : PAERO4,
+    'PAERO5' : PAERO5,
+
+    'SPLINE1' : SPLINE1,
+    'SPLINE2' : SPLINE2,
+    'SPLINE3' : SPLINE3,
+    'SPLINE4' : SPLINE4,
+    'SPLINE5' : SPLINE5,
+
+    # SOL 144
+    'AEROS' : AEROS,
+    'TRIM' : TRIM,
+    'TRIM2' : TRIM2,
+    'DIVERG' : DIVERG,
+
+    # SOL 145
+    'AERO' : AERO,
+    'FLUTTER' : FLUTTER,
+    'FLFACT' : FLFACT,
+    'MKAERO1' : MKAERO1,
+    'MKAERO2' : MKAERO2,
+
+    'GUST' : GUST,
+    'CSSCHD' : CSSCHD,
+    'MONPNT1' : MONPNT1,
+    'MONPNT2' : MONPNT2,
+    'MONPNT3' : MONPNT3,
+
+    'NLPARM' : NLPARM,
+    'NLPCI' : NLPCI,
+    'TSTEP' : TSTEP,
+    'TSTEP1' : TSTEP1,
+    'TSTEPNL' : TSTEPNL,
+
+    'TF' : TF,
+    'TIC' : TIC,
+
+    'DCONADD' : DCONADD,
+    'DCONSTR' : DCONSTR,
+    'DDVAL' : DDVAL,
+    'DLINK' : DLINK,
+    'DSCREEN' : DSCREEN,
+
+    'DTABLE' : DTABLE,
+    'DRESP1' : DRESP1,
+    'DRESP2' : DRESP2,
+    'DRESP3' : DRESP3,
+    'DVCREL1' : DVCREL1,
+    'DVCREL2' : DVCREL2,
+    'DVPREL1' : DVPREL1,
+    'DVPREL2' : DVPREL2,
+    'DVMREL1' : DVMREL1,
+    'DVMREL2' : DVMREL2,
+    'DVGRID' : DVGRID,
+
+    # tables
+    'TABLES1' : TABLES1,
+    'TABLEST' : TABLEST,
+    'TABLEHT' : TABLEHT,
+    'TABLEH1' : TABLEH1,
+
+    # dynamic tables
+    'TABLED1' : TABLED1,
+    'TABLED2' : TABLED2,
+    'TABLED3' : TABLED3,
+    'TABLED4' : TABLED4,
+
+    # material tables
+    'TABLEM1' : TABLEM1,
+    'TABLEM2' : TABLEM2,
+    'TABLEM3' : TABLEM3,
+    'TABLEM4' : TABLEM4,
+
+    # other tables
+    'TABDMP1' : TABDMP1,
+    'TABRND1' : TABRND1,
+    'TABRNDG' : TABRNDG,
+
+    'EIGB' : EIGB,
+    'EIGR' : EIGR,
+    'EIGRL' : EIGRL,
+    'EIGC' : EIGC,
+    'EIGP' : EIGP,
+
+    'DMI' : DMI,
+    'DMIK' : DMIK,
+    'DMIG' : DMIG,
+    'DMIJI' : DMIJI,
+    'DMIJ' : DMIJ,
+    'DTI' : DTI,
+    'DMIG_UACCEL' : DMIG_UACCEL,
+
+    'BCRPARA' : BCRPARA,
+    'BCTADD' : BCTADD,
+    'BCTPARA' : BCTPARA,
+    'BSURF' : BSURF,
+    'BSURFS' : BSURFS,
+
+    'RADCAV' : RADCAV,
+    'RADLST' : RADLST,
+    'RADMTX' : RADMTX,
+    #'RADMT' : RADMT,
+    'RADBC' : RADBC,
+    'RADM' : RADM,
+
+    'ASET' : ASET,
+    'ASET1' : ASET1,
+
+    'BSET' : BSET,
+    'BSET1' : BSET1,
+
+    'CSET' : CSET,
+    'CSET1' : CSET1,
+
+    'QSET' : QSET,
+    'QSET1' : QSET1,
+
+    'USET' : USET,
+    'USET1' : USET1,
+
+    'SET1' : SET1,
+    'SET3' : SET3,
+
+    #'OMIT' : OMIT,
+    'OMIT1' : OMIT1,
+
+    # radset
+    'RADSET' : RADSET,
+
+    'SESET' : SESET,
+
+    'SEBSET' : SEBSET,
+    'SEBSET1' : SEBSET1,
+
+    'SECSET' : SECSET,
+    'SECSET1' : SECSET1,
+
+    'SEQSET' : SEQSET,
+    'SEQSET1' : SEQSET1,
+
+    #'SESUP' : SESUP,
+
+    #'SEUSET' : SEUSET,
+    #'SEUSET1' : SEUSET1,
+
+    # BCTSET
+    'ROTORG' : ROTORG,
+    'ROTORD' : ROTORD,
+
+    'DAREA' : DAREA,
+    'DPHASE' : DPHASE,
+    'DELAY' : DELAY,
+    'ZONA' : ZONA,
+}
 
 class AddCards(AddMethods):
     """defines the add_cardname functions that use the object inits"""
     def __init__(self):
         AddMethods.__init__(self)
+
+    def get_custom_types(self):
+        """helper method for ``dict_to_h5py``"""
+        #return CARD_MAP
+        import copy
+        from pyNastran.bdf.case_control_deck import CaseControlDeck
+        custom_types = copy.deepcopy(CARD_MAP)
+        custom_types['CaseControlDeck'] = CaseControlDeck
+        return custom_types
 
     def add_grid(self, nid, xyz, cp=0, cd=0, ps='', seid=0, comment=''):
         # type: (int, Union[None, List[float], np.ndarray], int, int, str, int, str) -> None
@@ -1295,7 +1849,7 @@ class AddCards(AddMethods):
         """Creates a PBUSHT card"""
         prop = PBUSHT(pid, k_tables, b_tables, ge_tables, kn_tables,
                       comment=comment)
-        self._add_property_object(prop)
+        self._add_pbusht_object(prop)
         return prop
 
     def add_pelast(self, pid, tkid=0, tgeid=0, tknid=0, comment=''):
@@ -2508,6 +3062,16 @@ class AddCards(AddMethods):
         self._add_property_object(prop)
         return prop
 
+    def add_genel_stiffness(self, eid, ul, ud, k, s=None):
+        """creates a GENEL card using the stiffness approach"""
+        assert k is not None
+        return GENEL(eid, ul, ud, k, None, s)
+
+    def add_genel_flexibility(self, eid, ul, ud, z, s=None):
+        """creates a GENEL card using the flexiblity approach"""
+        assert z is not None
+        return GENEL(eid, ul, ud, None, z, s)
+
     def add_axic(self, nharmonics, comment=''):
         """Creates a AXIC card"""
         axic = AXIC(nharmonics, comment=comment)
@@ -2892,6 +3456,26 @@ class AddCards(AddMethods):
                     rho_table=rho_table, a1_table=a1_table, a2_table=a2_table,
                     xt_table=xt_table, xc_table=xc_table, yt_table=yt_table, yc_table=yc_table,
                     s_table=s_table, ge_table=ge_table, f12_table=f12_table, comment=comment)
+        self._add_material_dependence_object(mat)
+        return mat
+    def add_matt9(self, mid,
+                  g11_table, g12_table, g13_table, g14_table, g15_table, g16_table,
+                  g22_table, g23_table, g24_table, g25_table, g26_table,
+                  g33_table, g34_table, g35_table, g36_table,
+                  g44_table, g45_table, g46_table,
+                  g55_table, g56_table,
+                  g66_table, rho_table,
+                  a1_table, a2_table, a3_table, a4_table, a5_table, a6_table,
+                  ge_table, comment=''):
+        mat = MATT9(mid,
+                    g11_table, g12_table, g13_table, g14_table, g15_table, g16_table,
+                    g22_table, g23_table, g24_table, g25_table, g26_table,
+                    g33_table, g34_table, g35_table, g36_table,
+                    g44_table, g45_table, g46_table,
+                    g55_table, g56_table,
+                    g66_table, rho_table,
+                    a1_table, a2_table, a3_table, a4_table, a5_table, a6_table,
+                    ge_table, comment=comment)
         self._add_material_dependence_object(mat)
         return mat
 
@@ -5561,7 +6145,24 @@ class AddCards(AddMethods):
         return elem
 
     def add_rbe2(self, eid, gn, cm, Gmi, alpha=0.0, comment=''):
-        """Creates an RBE2 element"""
+        """
+        Creates an RBE2 element
+
+        Parameters
+        ----------
+        eid : int
+            element id
+        gn : int
+           Identification number of grid point to which all six independent
+           degrees-of-freedom for the element are assigned.
+        cm : str
+            Component numbers of the dependent degrees-of-freedom in the
+            global coordinate system at grid points GMi.
+        Gmi : List[int]
+            dependent nodes
+        alpha : float; default=0.0
+            ???
+        """
         elem = RBE2(eid, gn, cm, Gmi, alpha=alpha, comment=comment)
         self._add_rigid_element_object(elem)
         return elem
@@ -6953,7 +7554,7 @@ class AddCards(AddMethods):
             self._add_dti_object(dti)
         else:
             if comment:
-                self.reject_lines.append([_format_comment(comment)])
+                #self.reject_lines.append([_format_comment(comment)])
                 msg = "DTI only supports name='UNITS'; name=%r fields=%s" % (name, str(fields))
             raise NotImplementedError(msg)
             #self.reject_cards.append(card_obj)
@@ -7101,3 +7702,90 @@ class AddCards(AddMethods):
                     eidl, eidh, t_abcd=t_abcd, direction=direction, comment=comment)
         self._add_element_object(elem)
         return elem
+
+    #---------------------------------------------------------------------
+    # superelements.py
+
+    def add_sebndry(self, seid_a, seid_b, ids, comment=''):
+        sebndry = SEBNDRY(seid_a, seid_b, ids, comment=comment)
+        self._add_sebndry_object(sebndry)
+        return sebndry
+
+    def add_sebulk(self, seid, superelement_type, rseid,
+                   method='AUTO', tol=1e-5, loc='YES', unitno=None, comment=''):
+        sebulk = SEBULK(seid, superelement_type, rseid,
+                        method=method, tol=tol, loc=loc,
+                        unitno=unitno, comment=comment)
+        self._add_sebulk_object(sebulk)
+        return sebulk
+
+    def add_seconct(self, seid_a, seid_b, tol, loc, nodes_a, nodes_b, comment=''):
+        seconct = SECONCT(seid_a, seid_b, tol, loc, nodes_a, nodes_b, comment=comment)
+        self._add_seconct_object(seconct)
+        return seconct
+
+    def add_seelt(self, seid, ids, comment=''):
+        seelt = SEELT(seid, ids, comment=comment)
+        self._add_seelt_object(seelt)
+        return seelt
+
+    def add_seexcld(self, seid_a, seid_b, nodes, comment=''):
+        seexcld = SEEXCLD(seid_a, seid_b, nodes, comment=comment)
+        self._add_seexcld_object(seexcld)
+        return seexcld
+
+    def add_selabel(self, seid, label, comment=''):
+        selabel = SELABEL(seid, label, comment=comment)
+        self._add_selabel_object(selabel)
+        return selabel
+
+    def add_seloc(self, seid, nodes_seid, nodes0, comment=''):
+        """
+        Creates an SELOC card, which transforms the superelement SEID
+        from PA to PB.  Basically, define two CORD1Rs.
+
+        Parameters
+        ----------
+        seid : int
+            the superelement to transform
+        nodes_seid : List[int, int, int]
+            the nodes in the superelement than define the resulting coordinate system
+        nodes0 : List[int, int, int]
+            the nodes in the superelement than define the starting coordinate system
+        comment : str; default=''
+            a comment for the card
+
+        """
+        seloc = SELOC(seid, nodes_seid, nodes0, comment=comment)
+        self._add_seloc_object(seloc)
+        return seloc
+
+    def add_seload(self, lid_s0, seid, lid_se, comment=''):
+        seload = SELOAD(lid_s0, seid, lid_se, comment=comment)
+        self._add_seload_object(seload)
+        return seload
+
+    def add_sempln(self, seid, p1, p2, p3, comment=''):
+        sempln = SEMPLN(seid, p1, p2, p3, comment=comment)
+        self._add_sempln_object(sempln)
+        return sempln
+
+    def add_setree(self, seid, ids, comment=''):
+        setree = SETREE(seid, ids, comment=comment)
+        self._add_setree_object(setree)
+        return setree
+
+    def add_csuper(self, seid, psid, nodes, comment=''):
+        csuper = CSUPER(seid, psid, nodes, comment=comment)
+        self._add_csuper_object(csuper)
+        return csuper
+
+    def add_csupext(self, seid, nodes, comment=''):
+        csupext = CSUPEXT(seid, nodes, comment=comment)
+        self._add_csupext_object(csupext)
+        return csupext
+
+    def add_senqset(self, set_id, n, comment=''):
+        senqset = SENQSET(set_id, n, comment=comment)
+        self._add_senqset_object(senqset)
+        return senqset

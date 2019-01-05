@@ -14,8 +14,9 @@ from qtpy.QtWidgets import (
     QCheckBox, QGroupBox, QComboBox, QFileDialog)
 from qtpy.compat import getexistingdirectory
 
-from pyNastran.gui.qt_version import qt_version
-from pyNastran.gui.utils.qt.pydialog import PyDialog, check_int, check_float
+from pyNastran.gui.utils.qt.pydialog import (
+    PyDialog, check_int, check_float, check_name_str, check_path,
+    set_combo_box_text)
 from pyNastran.gui.utils.qt.dialogs import open_file_dialog
 from pyNastran.gui.menus.results_sidebar import ResultsWindow
 from pyNastran.gui.menus.results_sidebar_utils import (
@@ -83,7 +84,7 @@ class AnimationWindow(PyDialog):
         self._icase_disp = data['icase_disp']
         self._icase_vector = data['icase_vector']
 
-        self._default_name = data['name']
+        self._default_title = data['title']
         self._default_time = data['time']
         self._default_fps = data['frames/sec']
         self._default_resolution = data['resolution']
@@ -99,7 +100,7 @@ class AnimationWindow(PyDialog):
         self._default_phase = data['default_phase']
 
         self._default_dirname = data['dirname']
-        self._default_gif_name = os.path.join(self._default_dirname, data['name'] + '.gif')
+        self._default_gif_name = os.path.join(self._default_dirname, data['title'] + '.gif')
 
         self.animation_types = [
             'Animate Scale',
@@ -309,14 +310,14 @@ class AnimationWindow(PyDialog):
 
         self.browse_folder_label = QLabel('Output Directory:')
         self.browse_folder_edit = QLineEdit(str(self._default_dirname))
-        self.browse_folder_button = QPushButton('Browse')
+        self.browse_folder_button = QPushButton('Browse...')
         self.browse_folder_edit.setToolTip('Location to save the png/gif files')
 
         self.gif_label = QLabel("Gif Filename:")
-        self.gif_edit = QLineEdit(str(self._default_name + '.gif'))
+        self.gif_edit = QLineEdit(str(self._default_title + '.gif'))
         self.gif_button = QPushButton('Default')
         self.gif_edit.setToolTip('Name of the gif')
-        self.gif_button.setToolTip('Sets the name of the gif to %s.gif' % self._default_name)
+        self.gif_button.setToolTip('Sets the name of the gif to %s.gif' % self._default_title)
 
         # scale / phase
         if 1: # pragma: no cover
@@ -478,7 +479,7 @@ class AnimationWindow(PyDialog):
         self.resolution_button.clicked.connect(self.on_default_resolution)
         self.browse_folder_button.clicked.connect(self.on_browse_folder)
         self.csv_profile_browse_button.clicked.connect(self.on_browse_csv)
-        self.gif_button.clicked.connect(self.on_default_name)
+        self.gif_button.clicked.connect(self.on_default_title)
 
         self.step_button.clicked.connect(self.on_step)
         self.wipe_button.clicked.connect(self.on_wipe)
@@ -753,16 +754,17 @@ class AnimationWindow(PyDialog):
             return
         self.csv_profile_browse_button.setText(dirname)
 
-    def on_default_name(self):
+    def on_default_title(self):
         """sets the default gif name"""
-        self.gif_edit.setText(self._default_name + '.gif')
+        self.gif_edit.setText(self._default_title + '.gif')
 
     def on_default_scale(self):
         """sets the default displacement scale factor"""
         if self.is_gui:
             icase_disp = self.icase_disp_edit.value()
-            unused_scale, unused_phase, default_scale, unused_default_phase = self.gui.legend_obj.get_legend_disp(
+            out = self.gui.legend_obj.get_legend_disp(
                 icase_disp)
+            unused_scale, unused_phase, default_scale, unused_default_phase = out
         else:
             default_scale = self._default_scale
         self.scale_edit.setText(str(default_scale))
@@ -772,7 +774,8 @@ class AnimationWindow(PyDialog):
         """sets the default arrow scale factor"""
         if self.is_gui:
             icase_vector = self.icase_vector_edit.value()
-            unused_arrow_scale, default_arrow_scale = self.gui.legend_obj.get_legend_vector(icase_vector)
+            out = self.gui.legend_obj.get_legend_vector(icase_vector)
+            unused_arrow_scale, default_arrow_scale = out
         else:
             default_arrow_scale = self._default_arrow_scale
         self.arrow_scale_edit.setText(str(default_arrow_scale))
@@ -1169,41 +1172,11 @@ class AnimationWindow(PyDialog):
             magnify, output_dir, gifbase = None, None, None
         else:
             magnify, flag6 = check_int(self.resolution_edit)
-            output_dir, flag7 = self.check_path(self.browse_folder_edit)
-            gifbase, flag8 = self.check_name(self.gif_edit)
+            output_dir, flag7 = check_path(self.browse_folder_edit)
+            gifbase, flag8 = check_name_str(self.gif_edit)
             passed = all([flag0, flag1, flag2, flag3, flag4, flag5, flag6, flag7, flag8])
         return passed, (icase_fringe, icase_disp, icase_vector, scale, time, fps, animate_in_gui,
                         magnify, output_dir, gifbase, min_value, max_value)
-
-    @staticmethod
-    def check_name(cell):
-        """verifies that the data is string-able"""
-        cell_value = cell.text()
-        try:
-            text = str(cell_value).strip()
-        except UnicodeEncodeError:
-            cell.setStyleSheet("QLineEdit{background: red;}")
-            return None, False
-
-        if len(text):
-            cell.setStyleSheet("QLineEdit{background: white;}")
-            return text, True
-        else:
-            cell.setStyleSheet("QLineEdit{background: red;}")
-            return None, False
-
-    def check_path(self, cell):
-        """verifies that the path exists"""
-        text, passed = self.check_name(cell)
-        if not passed:
-            return None, False
-
-        if os.path.exists(text):
-            cell.setStyleSheet("QLineEdit{background: white;}")
-            return text, True
-        else:
-            cell.setStyleSheet("QLineEdit{background: red;}")
-            return None, False
 
     #def on_ok(self):
         #"""click the OK button"""
@@ -1241,7 +1214,7 @@ def main(): # pragma: no cover
         'icase_disp' : 2,
         'icase_vector' : 3,
 
-        'name' : 'cat',
+        'title' : 'cat',
         'time' : 2,
         'frames/sec' : 30,
         'resolution' : 1,
@@ -1290,13 +1263,6 @@ def main(): # pragma: no cover
     # Enter the main loop
     app.exec_()
 
-def set_combo_box_text(combo_box, value):
-    if qt_version == 'pyside':
-        items = [combo_box.itemText(i) for i in range(combo_box.count())]
-        j = items.index(value)
-        combo_box.setCurrentIndex(j)
-    else:
-        combo_box.setCurrentText(value)
 
 if __name__ == "__main__": # pragma: no cover
     main()

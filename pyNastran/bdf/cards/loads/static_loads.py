@@ -53,6 +53,14 @@ class LOAD(LoadCombination):
     """
     type = 'LOAD'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        scale = 1.
+        scale_factors = [1.]
+        load_ids = [1]
+        return cls(sid, scale, scale_factors, load_ids, comment='')
+
     def __init__(self, sid, scale, scale_factors, load_ids, comment=''):
         """
         Creates a LOAD card
@@ -235,6 +243,13 @@ class GRAV(BaseCard):
     """
     type = 'GRAV'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        scale = 1.
+        N = [1., 1., 1.]
+        return GRAV(sid, scale, N, cid=0, mb=0, comment='')
+
     def __init__(self, sid, scale, N, cid=0, mb=0, comment=''):
         """
         Creates an GRAV card
@@ -409,6 +424,15 @@ class ACCEL(BaseCard):
     """
     type = 'ACCEL'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        N = [1., 2., 3.]
+        direction = 'X'
+        locs = [0., 1.]
+        vals = [1., 2.]
+        return ACCEL(sid, N, direction, locs, vals, cid=0, comment='')
+
     def __init__(self, sid, N, direction, locs, vals, cid=0, comment=''):
         """
         Creates an ACCEL card
@@ -549,6 +573,15 @@ class ACCEL1(BaseCard):
     +--------+---------+---------+-----+----+----+----+
     """
     type = 'ACCEL1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        N = [1., 2., 3.]
+        scale = 1.
+        nodes = [1, 3, 4]
+        return ACCEL1(sid, scale, N, nodes, cid=0, comment='')
 
     def __init__(self, sid, scale, N, nodes, cid=0, comment=''):
         """
@@ -742,6 +775,32 @@ class ACCEL1(BaseCard):
 
 class Load0(BaseCard):
     """common class for FORCE, MOMENT"""
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, loads):
+        """exports the loads in a vectorized way"""
+        #encoding = model._encoding
+        #comments = []
+        sid = []
+        node = []
+        cid = []
+        mag = []
+        xyz = []
+        for load in loads:
+            #comments.append(loads.comment)
+            sid.append(load.sid)
+            node.append(load.node)
+            cid.append(load.cid)
+            mag.append(load.mag)
+            xyz.append(load.xyz)
+
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('sid', data=sid)
+        h5_file.create_dataset('node', data=node)
+        h5_file.create_dataset('cid', data=cid)
+        h5_file.create_dataset('mag', data=mag)
+        h5_file.create_dataset('xyz', data=xyz)
+
     def __init__(self, sid, node, mag, xyz, cid=0, comment=''):
         """
         Creates a FORCE/MOMENT card
@@ -770,12 +829,12 @@ class Load0(BaseCard):
         self.mag = mag
         self.xyz = np.asarray(xyz, dtype='float64')
         assert self.xyz.size == 3, self.xyz.shape
-        assert isinstance(self.cid, int), self.cid
+        assert isinstance(self.cid, integer_types), self.cid
         self.node_ref = None
         self.cid_ref = None
 
     def validate(self):
-        assert isinstance(self.cid, int), self.cid
+        assert isinstance(self.cid, integer_types), self.cid
         assert isinstance(self.mag, float), self.mag
         assert self.xyz.size == 3, self.xyz.shape
 
@@ -936,6 +995,18 @@ class FORCE(Load0):
 
 
 class Load1(BaseCard):
+    """common class for FORCE1, MOMENT1"""
+    _properties = ['node_id', 'node_ids', 'scaled_vector']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        node = 1
+        mag = 1.
+        g1 = 2
+        g2 = 3
+        return cls(sid, node, mag, g1, g2, comment='')
+
     def __init__(self, sid, node, mag, g1, g2, comment=''):
         """
         Creates a FORCE1/MOMENT1 card
@@ -1125,6 +1196,19 @@ class FORCE1(Load1):
 
 class Load2(BaseCard):
     """common class for FORCE2, MOMENT2"""
+    _properties = ['node_id', 'node_ids', ]
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        node = 1
+        mag = 1.
+        g1 = 2
+        g2 = 3
+        g3 = 4
+        g4 = 5
+        return cls(sid, node, mag, g1, g2, g3, g4, comment='')
+
     def __init__(self, sid, node, mag, g1, g2, g3, g4, comment=''):
         """
         Creates a FORCE2/MOMENT2 card
@@ -1433,6 +1517,7 @@ class FORCE2(Load2):
     +--------+-----+---+---+----+----+----+----+
     """
     type = 'FORCE2'
+    _properties = ['scaled_vector', 'node_id', 'node_ids']
     def __init__(self, sid, node, mag, g1, g2, g3, g4, comment=''):
         Load2.__init__(self, sid, node, mag, g1, g2, g3, g4, comment)
 
@@ -1577,6 +1662,7 @@ class MOMENT2(Load2):
     +---------+-----+---+---+----+----+----+----+
     """
     type = 'MOMENT2'
+    _properties = ['scaled_vector', 'node_id', 'node_ids']
     def __init__(self, sid, node, mag, g1, g2, g3, g4, comment=''):
         Load2.__init__(self, sid, node, mag, g1, g2, g3, g4, comment)
 
@@ -1587,6 +1673,16 @@ class GMLOAD(Load):
     magnitude and two grid points that determine the direction.
     """
     type = 'GMLOAD'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        normal = [0., 0., 1.]
+        entity = 1
+        entity_id = 1
+        method = 1
+        load_magnitudes = [1., 2.]
+        return GMLOAD(sid, normal, entity, entity_id, method, load_magnitudes, cid=0, comment='')
 
     def __init__(self, sid, normal, entity, entity_id, method,
                  load_magnitudes, cid=0, comment=''):
@@ -1729,6 +1825,14 @@ class PLOAD(Load):
     +-------+-----+------+----+----+----+----+
     """
     type = 'PLOAD'
+    _properties = ['node_ids', ]
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        pressure = 1.
+        nodes = [1, 2, 3]
+        return PLOAD(sid, pressure, nodes, comment='')
 
     def __init__(self, sid, pressure, nodes, comment=''):
         """
@@ -1866,6 +1970,16 @@ class PLOAD1(Load):
 
     # LE: length-based; FR: fractional; PR:projected
     valid_scales = ['LE', 'FR', 'LEPR', 'FRPR']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        eid = 1
+        load_type = 'FX'
+        scale = 1.
+        x1 = 0.5
+        p1 = 1.
+        return PLOAD1(sid, eid, load_type, scale, x1, p1, x2=None, p2=None, comment='')
 
     def __init__(self, sid, eid, load_type, scale, x1, p1, x2=None, p2=None, comment=''):
         """
@@ -2052,6 +2166,14 @@ class PLOAD2(Load):
     +--------+-----+------+------+------+------+------+------+------+
     """
     type = 'PLOAD2'
+    _properties = ['element_ids', ]
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        pressure = 1.
+        eids = [1, 2]
+        return PLOAD2(sid, pressure, eids, comment='')
 
     def __init__(self, sid, pressure, eids, comment=''):
         """
@@ -2276,6 +2398,18 @@ class PLOAD4(Load):
     .. warning:: NX does not support SORL and LDIR, MSC does
     """
     type = 'PLOAD4'
+    _properties = ['node_ids', 'element_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        eids = [1]
+        pressures = [1.]
+        g1 = None
+        g34 = None
+        return PLOAD4(sid, eids, pressures, g1, g34,
+                      cid=0,
+                      surf_or_line='SURF')
 
     def __init__(self, sid, eids, pressures, g1, g34,
                  cid=0, nvector=None, surf_or_line='SURF',
@@ -2714,6 +2848,15 @@ class PLOADX1(BaseCard):
     +---------+-----+-----+----+----+----+----+-------+
     """
     type = 'PLOADX1'
+    _properties = ['node_ids', 'nodes']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        eid = 1
+        pa = 1.
+        nids = [1, 2]
+        return PLOADX1(sid, eid, pa, nids, pb=None, theta=0., comment='')
 
     def __init__(self, sid, eid, pa, nids, pb=None, theta=0., comment=''):
         """

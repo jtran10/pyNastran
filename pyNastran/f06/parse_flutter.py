@@ -2,13 +2,17 @@
 SOL 145 plotter
 """
 from __future__ import print_function
-
+import os
+#import PySide
 import matplotlib.pyplot as plt
-try:  # pragma: no cover
-    plt.figure()
-    plt.close()
-except:  # pragma: no cover
-    plt.switch_backend('Agg')
+
+# if you're on linux and you don't have a bacend, add this...
+# we'd add it here, but it breaks PySide/PySide2's QApplication...
+#try:  # pragma: no cover
+    #plt.figure()
+    #plt.close()
+#except:  # pragma: no cover
+    #plt.switch_backend('Agg')
 
 
 from pyNastran.utils.log import get_logger2
@@ -187,7 +191,9 @@ def make_flutter_response(f06_filename, f06_units=None, out_units=None, log=None
                     sline and
                     'PAGE' not in sline and
                     'INFORMATION' not in sline and
-                    'EIGENVALUE' not in sline)
+                    'EIGENVALUE' not in sline and
+                    'USER' not in sline
+                )
                 if is_line:
                     #print('sline = %s' % sline)
                     lines.append(sline)
@@ -239,7 +245,9 @@ def plot_flutter_f06(f06_filename, f06_units=None, out_units=None,
                      plot_type='tas', modes=None,
                      plot_vg=False, plot_vg_vf=False, plot_root_locus=False,
                      plot_kfreq_damping=False, show=True,
-                     xlim=None, ylim_damping=None, ylim_freq=None, nopoints=False,
+                     xlim=None, ylim_damping=None, ylim_freq=None,
+                     nopoints=False, noline=False,
+                     export_zona=False, export_veas=False, export_f06=False,
                      log=None):
     """
     Plots a flutter (SOL 145) deck
@@ -276,6 +284,8 @@ def plot_flutter_f06(f06_filename, f06_units=None, out_units=None,
         ylimits for the V-f plots
     nopoints : bool; default=False
         suppress the points
+    noline : bool; default=False
+        suppress the lines
 
     Returns
     -------
@@ -307,16 +317,21 @@ def plot_flutter_f06(f06_filename, f06_units=None, out_units=None,
     make_flutter_plots(modes, flutters, xlim, ylim_damping, ylim_freq,
                        plot_type,
                        plot_vg, plot_vg_vf, plot_root_locus, plot_kfreq_damping,
-                       nopoints,
+                       nopoints, noline,
+                       export_zona=export_zona, export_veas=export_veas, export_f06=export_f06,
                        show=show)
     return flutters
 
 def make_flutter_plots(modes, flutters, xlim, ylim_damping, ylim_freq,
                        plot_type,
                        plot_vg, plot_vg_vf, plot_root_locus, plot_kfreq_damping,
-                       nopoints,
+                       nopoints, noline,
+                       legend=True, export_zona=False, export_veas=False, export_f06=False,
                        show=True):
     """actually makes the flutter plots"""
+    f06_filename = 'nastran.f06'
+    veas_filename = 'nastran.veas'
+    zona_filename = 'zona.f06'
     for unused_subcase, flutter in sorted(flutters.items()):
         if plot_vg:
             flutter.plot_vg(modes=modes,
@@ -328,14 +343,23 @@ def make_flutter_plots(modes, flutters, xlim, ylim_damping, ylim_freq,
                                show=False,
                                xlim=xlim,
                                ylim_damping=ylim_damping, ylim_freq=ylim_freq,
-                               nopoints=nopoints)
+                               nopoints=nopoints, noline=noline,
+                               legend=legend)
         if plot_root_locus:
             flutter.plot_root_locus(modes=modes, show=False)
         if plot_kfreq_damping:
             flutter.plot_kfreq_damping(modes=modes,
+                                       plot_type=plot_type,
                                        ylim_damping=ylim_damping,
                                        ylim_kfreq=None,
+                                       nopoints=nopoints, noline=noline,
                                        show=False)
+        if export_zona:
+            flutter.export_to_zona(zona_filename, modes=modes, xlim=xlim, plot_type=plot_type)
+        if export_veas:
+            flutter.export_to_veas(veas_filename, modes=modes)
+        if export_f06:
+            flutter.export_to_f06(f06_filename, modes=modes)
     if show:
         plt.show()
 

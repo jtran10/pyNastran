@@ -906,6 +906,60 @@ class PBAR(LineProperty):
         20 : 'i12', 'I12' : 'i12',
     }
 
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, pids):
+        """exports the properties in a vectorized way"""
+        #comments = []
+        mids = []
+        A = []
+        J = []
+        I = []
+
+        c = []
+        d = []
+        e = []
+        f = []
+        k = []
+        nsm = []
+        for pid in pids:
+            prop = model.properties[pid]
+            #comments.append(prop.comment)
+            mids.append(prop.mid)
+            A.append(prop.A)
+            I.append([prop.i1, prop.i2, prop.i12])
+            J.append(prop.j)
+
+            c.append([prop.c1, prop.c2])
+            d.append([prop.d1, prop.d2])
+            e.append([prop.e1, prop.e2])
+            f.append([prop.f1, prop.f2])
+
+            ki = []
+            if prop.k1 is None:
+                ki.append(np.nan)
+            else:
+                ki.append(prop.k1)
+            if prop.k2 is None:
+                ki.append(np.nan)
+            else:
+                ki.append(prop.k2)
+
+            k.append(ki)
+            nsm.append(prop.nsm)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('pid', data=pids)
+        h5_file.create_dataset('mid', data=mids)
+        h5_file.create_dataset('A', data=A)
+        h5_file.create_dataset('J', data=J)
+        h5_file.create_dataset('I', data=I)
+        h5_file.create_dataset('c', data=c)
+        h5_file.create_dataset('d', data=d)
+        h5_file.create_dataset('e', data=e)
+        h5_file.create_dataset('f', data=f)
+        h5_file.create_dataset('k', data=k)
+        h5_file.create_dataset('nsm', data=nsm)
+        #h5_file.create_dataset('_comment', data=comments)
+
     def __init__(self, pid, mid, A=0., i1=0., i2=0., i12=0., j=0., nsm=0.,
                  c1=0., c2=0., d1=0., d2=0., e1=0., e2=0., f1=0., f2=0.,
                  k1=1.e8, k2=1.e8, comment=''):
@@ -1059,9 +1113,10 @@ class PBAR(LineProperty):
             k1 = None
         if k2 == 0.:
             k2 = None
-        return PBAR(pid, mid, A, i1, i2, i12, j, nsm,
-                    c1, c2, d1, d2, e1, e2,
-                    f1, f2, k1, k2, comment=comment)
+
+        return PBAR(pid, mid, A=A, i1=i1, i2=i2, i12=i12, j=j, nsm=nsm,
+                    c1=c1, c2=c2, d1=d1, d2=d2, e1=e1, e2=e2,
+                    f1=f1, f2=f2, k1=k1, k2=k2, comment=comment)
 
     def _verify(self, xref):
         pid = self.pid
@@ -1185,6 +1240,7 @@ class PBARL(LineProperty):
     +-------+------+------+-------+------+------+------+------+------+
     """
     type = 'PBARL'
+    _properties = ['Type', 'valid_types']
     valid_types = {
         "ROD": 1,
         "TUBE": 2,
@@ -1221,6 +1277,14 @@ class PBARL(LineProperty):
         else:
             raise NotImplementedError('PBARL Type=%r name=%r has not been implemented' % (
                 self.Type, pname_fid))
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        Type = 'ROD'
+        dim = [1.]
+        return PBARL(pid, mid, Type, dim, group='MSCBML0', nsm=0., comment='')
 
     def __init__(self, pid, mid, Type, dim, group='MSCBML0', nsm=0., comment=''):
         """
@@ -1280,8 +1344,9 @@ class PBARL(LineProperty):
 
     def validate(self):
         if self.Type not in self.valid_types:
+            keys = list(self.valid_types.keys())
             msg = ('Invalid PBARL Type, Type=%s '
-                   'valid_types=%s' % (self.Type, self.valid_types.keys()))
+                   'valid_types=%s' % (self.Type, ', '.join(sorted(keys))))
             raise ValueError(msg)
 
         ndim = self.valid_types[self.Type]
@@ -1320,8 +1385,12 @@ class PBARL(LineProperty):
         group = string_or_blank(card, 3, 'group', 'MSCBML0')
         Type = string(card, 4, 'Type')
 
-        ndim = cls.valid_types[Type]
-
+        try:
+            ndim = cls.valid_types[Type]
+        except KeyError:
+            keys = list(cls.valid_types.keys())
+            raise KeyError('%r is not a valid PBARL type\nallowed_types={%s}' % (
+                Type, ', '.join(sorted(keys))))
         dim = []
         for i in range(ndim):
             dimi = double(card, 9 + i, 'ndim=%s; dim%i' % (ndim, i + 1))
@@ -1431,9 +1500,9 @@ class PBARL(LineProperty):
             raise
         return I[2]
 
-    def I1_I2_I12(self):
-        """gets the section I1, I2, I12 moment of inertia"""
-        return I1_I2_I12(prop, prop.dim)
+    #def I1_I2_I12(self):
+        #"""gets the section I1, I2, I12 moment of inertia"""
+        #return I1_I2_I12(prop, prop.dim)
 
     def I11(self):
         return self.I1()
@@ -1716,6 +1785,19 @@ class PBRSECT(LineProperty):
     not done
     """
     type = 'PBRSECT'
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 2
+        form = 'FORM'
+        options = [('OUTP', 10)]
+        return PBRSECT(pid, mid, form, options, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        self.brps = {key : value for key, value in zip(*self.brps)}
+        self.ts = {key : value for key, value in zip(*self.ts)}
+        self.inps = {key : value for key, value in zip(*self.inps)}
 
     def __init__(self, pid, mid, form, options, comment=''):
         LineProperty.__init__(self)
@@ -2120,6 +2202,17 @@ class PBEND(LineProperty):
     +-------+------+-------+-----+----+----+--------+----+--------+
     """
     type = 'PBEND'
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        fsi = 1
+        rm = 0.1
+        t = 0.01
+        return cls.add_beam_type_2(pid, mid,
+                                   fsi, rm, t, p=None, rb=None, theta_b=None,
+                                   nsm=0., rc=0., zc=0., comment='')
 
     def __init__(self, pid, mid, beam_type, A, i1, i2, j,
                  c1, c2, d1, d2, e1, e2, f1, f2, k1, k2,

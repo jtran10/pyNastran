@@ -16,6 +16,8 @@ import vtk
 
 import pyNastran
 from pyNastran.utils.numpy_utils import integer_types
+from pyNastran.bdf.cards.aero.utils import points_elements_from_quad_points
+
 from pyNastran.gui.gui_objects.names_storage import NamesStorage
 from pyNastran.gui.gui_objects.alt_geometry_storage import AltGeometry
 from pyNastran.gui.qt_files.gui_attributes import GuiAttributes
@@ -113,7 +115,7 @@ class GuiCommon(GuiAttributes):
             self.log_warning('cycle_results(result_name=%r); ncases=%i' % (
                 case, ncases))
             if self.ncases == 0:
-                self.scalarBar.SetVisibility(False)
+                self.scalar_bar_actor.SetVisibility(False)
             return
         case = self.cycle_results_explicit(case, explicit=False, show_msg=show_msg)
         assert case is not False, case
@@ -1288,7 +1290,7 @@ class GuiCommon(GuiAttributes):
             # key = self.case_keys[self.icase]
             # location = self.get_case_location(key)
             self.log_error('No results found.')
-            self.scalarBar.SetVisibility(False)
+            self.scalar_bar_actor.SetVisibility(False)
             found_cases = False
         #print("next icase=%s key=%s" % (self.icase, key))
         return found_cases
@@ -1448,6 +1450,100 @@ class GuiCommon(GuiAttributes):
 
         if follower_nodes is not None:
             self.follower_nodes[name] = follower_nodes
+
+    def _create_plane_actor_from_points(self, p1, p2, i, k, dim_max,
+                                        actor_name='plane'):
+        """
+        This is used by the cutting plane tool and the shear/moment/torque tool.
+
+           4+------+3
+            |      |
+            p1     p2
+            |      |
+           1+------+2
+        """
+        shift = 1.1
+        dshift = (shift - 1) / 2.
+        half_shift = 0.5 + dshift
+        delta = half_shift * dim_max
+        #dim_xy = shift * dim_max
+
+        #n1 = 1 - dim_max * (dshift * i + half_shift * k)
+        #n2 = n1 + shift * dim_max * i
+        #n3 = n2 + shift * dim_max * k
+        #n4 = n1 + shift * dim_max * k
+        pcenter = (p1 + p2) / 2
+        n1 = pcenter - delta * i - delta * k
+        n2 = pcenter + delta * i - delta * k
+        n3 = pcenter + delta * i + delta * k
+        n4 = pcenter - delta * i + delta * k
+
+        x = np.linspace(0., 1., num=10)
+        y = x
+        if actor_name in self.alt_grids:
+            plane_actor = self.plane_actor
+            add = False
+            #alt_grid =
+            #plane_source = vtk.vtkPlaneSource()
+            #self.rend.AddActor(plane_actor)
+            #self.plane_actor = plane_actor
+        else:
+            add = True
+            alt_grid = vtk.vtkUnstructuredGrid()
+            self.alt_grids[actor_name] = alt_grid
+
+            mapper = vtk.vtkDataSetMapper()
+            mapper.SetInputData(alt_grid)
+            plane_actor = vtk.vtkActor()
+            plane_actor.SetMapper(mapper)
+
+            #plane_source = self.plane_source
+            #plane_actor = self.plane_actor
+            self.plane_actor = plane_actor
+            self.rend.AddActor(plane_actor)
+
+        nodes, elements = points_elements_from_quad_points(n1, n2, n3, n4, x, y)
+        color = RED
+        self.set_quad_grid(actor_name, nodes, elements, color,
+                           line_width=1, opacity=1., representation='surface',
+                           add=add)
+        #plane_actor.Modified()
+        return plane_actor
+
+    def _create_point_actor_from_points(self, points, point_size=8,
+                                        actor_name='plane_poinnts'):  # pragma: no cover
+        """
+        This is used by the shear/moment/torque tool.
+
+            p1------p2
+        """
+        points = np.asarray(points)
+
+        if actor_name in self.alt_grids:
+            point_actor = self.point_actor
+            #alt_grid =
+            #plane_source = vtk.vtkPlaneSource()
+            #self.rend.AddActor(point_actor)
+            #self.point_actor = point_actor
+        else:
+            alt_grid = vtk.vtkUnstructuredGrid()
+            self.alt_grids[actor_name] = alt_grid
+
+            mapper = vtk.vtkDataSetMapper()
+            mapper.SetInputData(alt_grid)
+            point_actor = vtk.vtkActor()
+            point_actor.SetMapper(mapper)
+
+            #plane_source = self.plane_source
+            #point_actor = self.point_actor
+            self.point_actor = point_actor
+            self.rend.AddActor(point_actor)
+
+        nodes, elements = points_elements_from_quad_points(n1, n2, n3, n4, x, y)
+        color = RED
+        self.set_quad_grid(actor_name, nodes, elements, color,
+                           line_width=1, opacity=1., add=False)
+        return point_actor
 
     def _make_contour_filter(self):  # pragma: no cover
         """trying to make model lines...doesn't work"""

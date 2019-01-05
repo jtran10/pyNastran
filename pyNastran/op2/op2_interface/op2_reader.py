@@ -109,7 +109,7 @@ class OP2Reader(object):
             b'EQEXINS' : self.read_eqexin,
         }
         #self.op2_skip = OP2Skip(op2)
-    def read_nastran_version(self):
+    def read_nastran_version(self, mode):
         """reads the version header"""
         #try:
         op2 = self.op2
@@ -144,10 +144,12 @@ class OP2Reader(object):
             elif b'IMAT v' in data:
                 imat_version = data[6:11].encode('utf8')
                 macro_version = 'IMAT %s' % imat_version
+                mode = 'msc'
             else:
                 version_ints = Struct(self._endian + b'7i').unpack(data)
                 if version_ints == (1, 2, 3, 4, 5, 6, 7):
                     macro_version = 'MSFC'
+                    mode = 'msc'
                 else:
                     self.show_data(data)
                     raise NotImplementedError(data)
@@ -160,35 +162,38 @@ class OP2Reader(object):
             if self.is_debug_file:
                 self.binary_debug.write('%r\n' % data)
             version = data.strip()
+            version_str = version.decode(self._encoding)
+            #print('version = %r' % version_str)
 
             if macro_version == 'nastran':
                 if version.startswith(b'NX'):
-                    op2.set_as_nx()
-                    op2.set_table_type()
+                    mode = 'nx'
                 elif version.startswith(b'MODEP'):
                     # TODO: why is this separate?
                     # F:\work\pyNastran\pyNastran\master2\pyNastran\bdf\test\nx_spike\out_ac11103.op2
-                    op2.set_as_nx()
-                    op2.set_table_type()
+                    #print('found NX table?...')
+                    #self.log.warning('Assuming NX Nastran')
+                    mode = 'nx'
                 elif version.startswith(b'AEROFREQ'):
                     # TODO: why is this separate?
                     # C:\Users\Steve\Dropbox\pyNastran_examples\move_tpl\loadf.op2
-                    op2.set_as_msc()
-                    op2.set_table_type()
+                    #print('found MSC table?...')
+                    #self.log.warning('Assuming MSC Nastran')
+                    mode = 'msc'
                 elif version.startswith(b'AEROTRAN'):
                     # TODO: why is this separate?
                     # C:\Users\Steve\Dropbox\pyNastran_examples\move_tpl\loadf.op2
-                    op2.set_as_msc()
-                    op2.set_table_type()
-                elif version in [b'XXXXXXXX', b'V2005R3B']:
-                    op2.set_as_msc()
-                    op2.set_table_type()
+                    #self.log.warning('Assuming MSC Nastran')
+                    mode = 'msc'
+                elif version in [b'V2005R3B']:
+                    mode = 'msc'
+                elif version in [b'XXXXXXXX']:
+                    #self.log.warning('Assuming MSC Nastran')
+                    mode = 'msc'
                 elif version == b'OS12.210':
-                    op2.set_as_optistruct()
-                    op2.set_table_type()
+                    mode = 'optistruct'
                 elif version == b'OS11XXXX':
-                    op2.set_as_radioss()
-                    op2.set_table_type()
+                    mode = 'radioss'
                 #elif data[:20] == b'XXXXXXXX20141   0   ':
                     #self.set_as_msc()
                     #self.set_table_type()
@@ -213,6 +218,11 @@ class OP2Reader(object):
                 op2.post = -2
         else:
             raise NotImplementedError(markers)
+        if mode is None:
+            self.log.warning("No mode was set, assuming 'msc'")
+            mode = 'msc'
+        self.op2.set_mode(mode)
+        self.op2.set_table_type()
 
     def read_eqexin(self):
         """isat_random.op2"""
@@ -852,7 +862,9 @@ class OP2Reader(object):
             izero = [1, 2, 4, 6, 7, 8, 9]
 
             # not conclusive, but effective...
-            assert ints[:, izero].max() == ints[:, izero].min(), 'error reading %s table' % table_name
+            is_all_zero = ints[:, izero].max() == ints[:, izero].min()
+            if not is_all_zero:
+                self.log.warning('error reading %s table with is_all_zero != 0' % table_name)
             #for row in ints:
 
             #print(ints[iints, :])
@@ -876,7 +888,36 @@ class OP2Reader(object):
         # 3. or fluid grid points, CD=-1.
         #print(nid_cp_cd_ps)
         #print(xyz)
-        self.read_markers([-4, 1, 0, 0])
+
+
+        isubtable = -4
+        markers = self.get_nmarkers(1, rewind=True)
+
+        if markers[0] != isubtable:
+            self.read_markers([markers[0], 1, 0, 0])
+            self.show(200)
+            self.log.error('unexpected GPDT marker marker=%s; expected=%s' % (markers[0], isubtable))
+            #markers = self.get_nmarkers(1, rewind=False)
+            return
+
+        self.read_markers([isubtable, 1, 0])
+        markers = self.get_nmarkers(1, rewind=True)
+        while markers[0] != 0:
+            #markers = self.get_nmarkers(1, rewind=True)
+            #self.log.debug('GPDT record; markers=%s' % str(markers))
+            if self.read_mode == 1:
+                self._skip_record()
+            else:
+                #self.log.debug('unexpected GPDT record; markers=%s' % str(markers))
+                data = self._read_record()
+                #print('read_mode=%s freqs=%s' % (self.read_mode, freqs.tolist()))
+
+            markers = self.get_nmarkers(1, rewind=True)
+            self.read_markers([isubtable, 1, 0])
+            markers = self.get_nmarkers(1, rewind=True)
+            isubtable -= 1
+        del isubtable
+        self.read_markers([0])
 
     def read_bgpdt(self):
         """
@@ -2283,10 +2324,12 @@ class OP2Reader(object):
         """
         op2 = self.op2
         for i, marker in enumerate(markers):
+            #self.log.debug('markers[%i] = %s' % (i, marker))
             data = self.read_block()
             imarker, = op2.struct_i.unpack(data)
             if marker != imarker:
                 import os
+                #self.show_data(data)
                 msg = 'marker=%r imarker=%r; markers=%s; i=%s; table_name=%r; iloc=%s/%s' % (
                     marker, imarker, markers, i, op2.table_name,
                     op2.f.tell(), os.path.getsize(op2.op2_filename))
@@ -2419,7 +2462,14 @@ class OP2Reader(object):
 
     #------------------------------------------------------------------
     def _read_table_name(self, rewind=False, stop_on_failure=True):
-        """Reads the next OP2 table name (e.g. OUG1, OES1X1)"""
+        """
+        Reads the next OP2 table name (e.g. OUG1, OES1X1)
+
+        Returns
+        -------
+        table_name : bytes
+            the table name
+        """
         op2 = self.op2
         table_name = None
         data = None
@@ -2870,6 +2920,9 @@ class OP2Reader(object):
             print(msg)
             subtable_name, = op2.struct_8s.unpack(data[:8])
             print('subtable_name = %r' % subtable_name.strip())
+        elif ndata == 24 and op2.table_name == b'ICASE':
+            subtable_name = 'CASE CONTROL SECTION'
+            #strings = 'CASE CONTROL SECTION\xff\xff\xff\xff'
         else:
             strings, ints, floats = self.show_data(data)
             msg = 'len(data) = %i\n' % ndata
@@ -2973,7 +3026,30 @@ class OP2Reader(object):
             self._read_subtable_3_4(table3_parser, table4_parser, passer)
             #force_table4 = self._read_subtable_3_4(table3_parser, table4_parser, passer)
             op2.isubtable -= 1
-            self.read_markers([op2.isubtable, 1, 0])
+
+            iloc = op2.f.tell()
+            try:
+                self.read_markers([op2.isubtable, 1, 0])
+                #self.log.debug('markers=%s' % [op2.isubtable, 1, 0])
+            except FortranMarkerError:
+                self.log.error('isubtable=%s' % op2.isubtable)
+                op2.f.seek(iloc)
+                op2.n = iloc
+
+                self.show(4*3*3, types='i')
+                self.show(500)
+
+                marker0 = self.get_nmarkers(1, rewind=True)[0]
+                #print('marker0 =', marker0)
+                if marker0 < op2.isubtable:
+                    raise RuntimeError('marker0 < isubtable; marker0=%s isubtable=%s' % (
+                        marker0, op2.isubtable))
+                    #self.read_markers([marker0, 1, 0])
+                    ##self.log.debug('markers=%s' % [marker0, 1, 0])
+                    #self.show(200)
+                    #break
+                raise
+
             markers = self.get_nmarkers(1, rewind=True)
         if self.is_debug_file:
             self.binary_debug.write('breaking on marker=%r\n' % str(markers))
@@ -3054,6 +3130,18 @@ class OP2Reader(object):
                 #del n
 
     def show(self, n, types='ifs', endian=None):  # pragma: no cover
+        """
+        shows the next N bytes
+
+        Parameters
+        ----------
+        n : int
+            the number of bytes to show
+        types : str; default='ifs'
+            the data types to show
+        endian : str; default=None -> active endian
+            the data endian
+        """
         op2 = self.op2
         assert op2.n == op2.f.tell()
         nints = n // 4

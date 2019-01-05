@@ -9,9 +9,16 @@ from pyNastran.bdf.mesh_utils.convert import convert
 from pyNastran.bdf.mesh_utils.bdf_renumber import bdf_renumber
 from pyNastran.bdf.mesh_utils.mirror_mesh import bdf_mirror
 
+try:
+    import h5py
+    IS_H5PY = True
+except ImportError:
+    IS_H5PY = False
+
 def save_load_deck(model, xref='standard', punch=True, run_remove_unused=True,
                    run_convert=True, run_renumber=True, run_mirror=True,
-                   run_save_load=True, run_quality=True):
+                   run_save_load=True, run_quality=True, write_saves=True,
+                   run_save_load_hdf5=True):
     """writes, re-reads, saves an obj, loads an obj, and returns the deck"""
     model.validate()
     model.pop_parse_errors()
@@ -22,8 +29,13 @@ def save_load_deck(model, xref='standard', punch=True, run_remove_unused=True,
     model.write_bdf(bdf_file, size=16, close=False)
     bdf_file.seek(0)
     model.write_bdf(bdf_file, size=16, is_double=True, close=False)
-
     bdf_file.seek(0)
+
+    if write_saves and model.save_file_structure:
+        bdf_filenames = {0 : 'junk.bdf',}
+        model.write_bdfs(bdf_filenames)
+        os.remove('junk.bdf')
+
     if run_remove_unused:
         remove_unused(model)
     if run_convert:
@@ -48,6 +60,23 @@ def save_load_deck(model, xref='standard', punch=True, run_remove_unused=True,
     else:
         model2.uncross_reference()
         model3 = model2
+
+    if run_save_load_hdf5 and IS_H5PY:
+        model2.export_to_hdf5_filename('test.h5')
+        model4 = BDF(log=model2.log)
+        model4.load_hdf5_filename('test.h5')
+        model4.validate()
+        bdf_stream = StringIO()
+        model4.write_bdf(bdf_stream, encoding=None, size=8, is_double=False,
+                         interspersed=False, enddata=None, write_header=True, close=True)
+        for key, value in model2.card_count.items():
+            if key == 'ENDDATA':
+                continue
+            if key not in model4.card_count:
+                msg = 'key=%r was not loaded to hdf5\nexpected=%s\nactual=%s' % (
+                    key, model2.card_count, model4.card_count)
+                #raise RuntimeError(msg)
+                model.log.error(msg)
 
     cross_reference(model3, xref)
     if run_renumber:

@@ -65,6 +65,13 @@ class AECOMP(BaseCard):
     type = 'AECOMP'
     allowed_list_types = ['SET1', 'AELIST', 'CAERO']
 
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'name'
+        list_type = 'CAERO'
+        lists = [1]
+        return AECOMP(name, list_type, lists, comment='')
+
     def __init__(self, name, list_type, lists, comment=''):
         # type: (str, List[str], Union[int, List[int]], str) -> None
         """
@@ -223,27 +230,39 @@ class AECOMP(BaseCard):
         card = self.repr_fields()
         return self.comment + print_card_8(card)
 
+
 class AECOMPL(BaseCard):
+    """
+    +---------+--------+--------+--------+---------+--------+--------+--------+--------+
+    |    1    |    2   |    3   |    4   |    5    |    6   |    7   |    8   |    9   |
+    +=========+========+========+========+=========+========+========+========+========+
+    | AECOMPL |  NAME  | LABEL1 | LABEL2 | LABEL3  | LABEL4 | LABEL5 | LABEL6 | LABEL7 |
+    +---------+--------+--------+--------+---------+--------+--------+--------+--------+
+    |         | LABEL8 |  etc.  |        |         |        |        |        |        |
+    +---------+--------+--------+--------+---------+--------+--------+--------+--------+
+    | AECOMPL |  HORIZ |  STAB  |  ELEV  | BALANCE |        |        |        |        |
+    +---------+--------+--------+--------+---------+--------+--------+--------+--------+
+    """
     type = 'AECOMPL'
 
-    def __init__(self, name, list_type, lists, comment=''):
-        # type: (str, List[str], Union[int, List[int]], str) -> None
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'HORIZ'
+        labels = 'ELEV'
+        return AECOMPL(name, labels, comment='')
+
+    def __init__(self, name, labels, comment=''):
+        # type: (str, List[str]) -> None
         """
-        Creates an AECOMP card
+        Creates an AECOMPL card
 
         Parameters
         ----------
         name : str
             the name of the component
-        list_type : str
-            One of CAERO, AELIST or CMPID for aerodynamic components and
-            SET1 for structural components. Aerodynamic components are
-            defined on the aerodynamic ks-set mesh while the structural
-            components are defined on the g-set mesh.
-        lists : List[int, int, ...]; int
-            The identification number of either SET1, AELIST or CAEROi
-            entries that define the set of grid points that comprise
-            the component
+        labels : List[str, str, ...]; str
+            A string of 8 characters referring to the names of other components
+            defined by either AECOMP or other AECOMPL entries.
         comment : str; default=''
             a comment for the card
 
@@ -251,21 +270,20 @@ class AECOMPL(BaseCard):
         BaseCard.__init__(self)
         if comment:
             self.comment = comment
-        if isinstance(lists, integer_types):
-            lists = [lists]
-        elif not isinstance(lists, (list, tuple)):
-            raise TypeError('AECOMP; type(lists)=%s and must be a list/tuple' % type(lists))
+        if isinstance(labels, string_types):
+            labels = [labels]
+        elif not isinstance(labels, (list, tuple)):
+            raise TypeError('AECOMPL; type(labels)=%s and must be a list/tuple' % type(labels))
 
         self.name = name
-        self.list_type = list_type
-        self.lists = lists
-        self.lists_ref = None
+        self.labels = labels
+        #self.labels_ref = None
 
     @classmethod
     def add_card(cls, card, comment=''):
         # type: (Any, str) -> AECOMP
         """
-        Adds an AECOMP card from ``BDF.add_card(...)``
+        Adds an AECOMPL card from ``BDF.add_card(...)``
 
         Parameters
         ----------
@@ -275,20 +293,27 @@ class AECOMPL(BaseCard):
             a comment for the card
 
         """
-        aecompl
         name = string(card, 1, 'name')
-        list_type = string(card, 2, 'list_type')
+        labels = []
         j = 1
-        lists = []
-        for i in range(3, len(card)):
-            list_i = integer(card, i, '%s_%i' % (list_type, j))
-            lists.append(list_i)
+        for i in range(2, len(card)):
+            label = string(card, i, 'label_%i' % j)
+            labels.append(label)
             j += 1
-        return AECOMPL(name, list_type, lists, comment=comment)
+        return AECOMPL(name, labels, comment=comment)
 
-    #def raw_fields(self):
-        #list_fields = ['AECOMP', self.name, self.list_type] + self.get_lists()
-        #return list_fields
+    def cross_reference(self, model):
+        pass
+
+    def safe_cross_reference(self, model):
+        pass
+
+    def uncross_reference(self):
+        pass
+
+    def raw_fields(self):
+        list_fields = ['AECOMPL', self.name] + self.labels
+        return list_fields
 
     def write_card(self, size=8, is_double=False):
         # (int, bool) -> str
@@ -324,6 +349,12 @@ class AEFACT(BaseCard):
 
     """
     type = 'AEFACT'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        fractions = [0., 1.,]
+        return AEFACT(sid, fractions, comment='')
 
     def __init__(self, sid, fractions, comment=''):
         """
@@ -423,6 +454,14 @@ class AELINK(BaseCard):
     +--------+-------+-------+--------+------+-------+----+-------+----+
     """
     type = 'AELINK'
+
+    @classmethod
+    def _init_from_empty(cls):
+        aelink_id = 1
+        label = 'ELEV'
+        independent_labels = ['ELEV1', 'ELEV2']
+        linking_coefficents = [1., 2.]
+        return AELINK(aelink_id, label, independent_labels, linking_coefficents, comment='')
 
     def __init__(self, aelink_id, label, independent_labels, linking_coefficents,
                  comment=''):
@@ -586,6 +625,10 @@ class AELIST(BaseCard):
     """
     type = 'AELIST'
 
+    @classmethod
+    def _init_from_empty(cls):
+        return AELIST(1, [1], comment='')
+
     def __init__(self, sid, elements, comment=''):
         """
         Creates an AELIST card, which defines the aero boxes for
@@ -687,6 +730,13 @@ class AEPARM(BaseCard):
     _field_map = {
         1: 'id', 2:'label', 3:'units'
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        aeparm_id = 1
+        label = 'name'
+        units = ''
+        return AEPARM(aeparm_id, label, units, comment='')
 
     def __init__(self, aeparm_id, label, units, comment=''):
         """
@@ -800,6 +850,17 @@ class AESURF(BaseCard):
         7:'eff', 8:'ldw', 9:'crefc', 10:'crefs', 11:'pllim', 12:'pulim',
         13:'hmllim', 14:'hmulim', 15:'tqllim', '16':'tqulim',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        aesid = 1
+        label = 'name'
+        cid1 = 1
+        alid1 = 1
+        return AESURF(aesid, label, cid1, alid1,
+                      cid2=None, alid2=None, eff=1.0, ldw='LDW',
+                      crefc=1.0, crefs=1.0, pllim=-np.pi/2., pulim=np.pi/2.,
+                      hmllim=None, hmulim=None, tqllim=None, tqulim=None, comment='')
 
     def __init__(self, aesid, label, cid1, alid1, cid2=None, alid2=None, eff=1.0, ldw='LDW',
                  crefc=1.0, crefs=1.0, pllim=-np.pi/2., pulim=np.pi/2.,
@@ -994,7 +1055,8 @@ class AESURF(BaseCard):
         if self.alid2:
             self.alid2_ref = model.safe_aelist(self.alid2, self.aesid, xref_errors, msg=msg)
 
-        self.tqllim_ref = model.safe_tabled(self.tqllim, self.aesid, xref_errors, msg=msg)
+        if self.tqllim is not None:
+            self.tqllim_ref = model.safe_tabled(self.tqllim, self.aesid, xref_errors, msg=msg)
         if self.tqulim is not None:
             self.tqulim_ref = model.safe_tabled(self.tqulim, self.aesid, xref_errors, msg=msg)
 
@@ -1103,6 +1165,14 @@ class AESURFS(BaseCard):  # not integrated
     +---------+------+-------+---+-------+---+-------+
     """
     type = 'AESURFS'
+
+    @classmethod
+    def _init_from_empty(cls):
+        aesid = 1
+        label = 'name'
+        list1 = 1
+        list2 = 2
+        return AESURFS(aesid, label, list1, list2, comment='')
 
     def __init__(self, aesid, label, list1, list2, comment=''):
         """
@@ -1294,6 +1364,7 @@ class CAERO1(BaseCard):
         1: 'sid', 2:'pid', 3:'cp', 4:'nspan', 5:'nchord',
         6:'lspan', 7:'lchord', 8:'igroup', 12:'x12', 16:'x43',
     }
+    _properties = ['_field_map', 'shape', 'xy', 'min_max_eid', 'npanels']
     def _get_field_helper(self, n):
         """
         Gets complicated parameters on the CAERO1 card
@@ -1349,6 +1420,18 @@ class CAERO1(BaseCard):
             self.p4[2] = value
         else:
             raise KeyError('Field %r=%r is an invalid CAERO1 entry.' % (n, value))
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        igroup = 1
+        p1 = [0., 0., 0.]
+        x12 = 1.
+        p4 = [0., 10., 0.]
+        x43 = 0.5
+        return CAERO1(eid, pid, igroup, p1, x12, p4, x43,
+                      cp=0, nspan=0, lspan=0, nchord=0, lchord=0, comment='')
 
     def __init__(self, eid, pid, igroup, p1, x12, p4, x43,
                  cp=0, nspan=0, lspan=0, nchord=0, lchord=0, comment=''):
@@ -1615,7 +1698,10 @@ class CAERO1(BaseCard):
         msg = ', which is required by CAERO1 eid=%s' % self.eid
         self.pid_ref = model.PAero(self.pid, msg=msg)
         self.cp_ref = model.Coord(self.cp, msg=msg)
-        self.ascid_ref = model.Acsid(msg=msg)
+        if model.sol in [144, 145, 146, 200]:
+            self.ascid_ref = model.Acsid(msg=msg)
+        else:
+            self.ascid_ref = model.safe_acsid(msg=msg)
 
         if self.nchord == 0:
             assert isinstance(self.lchord, integer_types), self.lchord
@@ -1988,6 +2074,8 @@ class CAERO2(BaseCard):
         1: 'sid', 2:'pid', 3:'cp', 4:'nsb', 5:'lsb',
         6:'nint', 7:'lint', 8:'igroup', 12:'x12',
     }
+    _properties = ['nboxes']
+
     def _get_field_helper(self, n):
         """
         Gets complicated parameters on the CAERO2 card
@@ -2032,6 +2120,15 @@ class CAERO2(BaseCard):
             self.p1[2] = value
         else:
             raise KeyError('Field %r=%r is an invalid CAERO2 entry.' % (n, value))
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        igroup = 1
+        p1 = [0., 0., 0.]
+        x12 = 10.
+        return CAERO2(eid, pid, igroup, p1, x12, cp=0, nsb=0, nint=0, lsb=0, lint=0, comment='')
 
     def __init__(self, eid, pid, igroup, p1, x12,
                  cp=0, nsb=0, nint=0, lsb=0, lint=0, comment=''):
@@ -2385,6 +2482,20 @@ class CAERO2(BaseCard):
 
 class CAERO3(BaseCard):
     type = 'CAERO3'
+    _properties = ['shape', 'xy']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        list_w = 1
+        p1 = [0., 0., 0.]
+        p4 = [0., 10., 0.]
+        x12 = 10.
+        x43 = 10.
+        return CAERO3(eid, pid, list_w, p1, x12, p4, x43,
+                      cp=0, list_c1=None, list_c2=None, comment='')
+
     def __init__(self, eid, pid, list_w,
                  p1, x12, p4, x43,
                  cp=0, list_c1=None, list_c2=None,
@@ -2537,6 +2648,7 @@ class CAERO3(BaseCard):
             self.list_c1 = self.List_c1()
         if self.list_c2 != self.List_c2():
             self.list_c2 = self.List_c2()
+
         self.pid_ref = None
         self.cp_ref = None
         self.ascid_ref = None
@@ -2641,19 +2753,19 @@ class CAERO3(BaseCard):
         return self.pid
 
     def List_w(self):
-        if self.list_w is None or isinstance(self.list_w, integer_types):
-            return self.list_w
-        return self.list_w.sid
+        if self.list_w_ref is not None:
+            return self.list_w_ref.sid
+        return self.list_w
 
     def List_c1(self):
-        if self.list_c1 is None or isinstance(self.list_c1, integer_types):
-            return self.list_c1
-        return self.list_c1.sid
+        if self.list_c1_ref is not None:
+            return self.list_c1_ref.sid
+        return self.list_c1
 
     def List_c2(self):
-        if self.list_c2 is None or isinstance(self.list_c2, integer_types):
-            return self.list_c2
-        return self.list_c2.sid
+        if self.list_c2_ref is not None:
+            return self.list_c2_ref.sid
+        return self.list_c2
 
     def raw_fields(self):
         """
@@ -2705,6 +2817,18 @@ class CAERO4(BaseCard):
     +--------+-----+-----+----+-------+--------+--------+--------+------+
     """
     type = 'CAERO4'
+    _properties = ['shape', 'xy']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        p1 = [0., 0., 0.]
+        p4 = [0., 10., 0.]
+        x12 = 10.
+        x43 = 10.
+        return CAERO4(eid, pid, p1, x12, p4, x43, cp=0, nspan=0, lspan=0, comment='')
+
     def __init__(self, eid, pid, p1, x12, p4, x43,
                  cp=0, nspan=0, lspan=0, comment=''):
         """
@@ -3023,6 +3147,20 @@ class CAERO5(BaseCard):
     +--------+------+------+-----+-------+-------+-------+--------+-------+
     """
     type = 'CAERO5'
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        ncontrol_surfaces = 1
+        p1 = [0., 0., 0.]
+        p4 = [0., 10., 0.]
+        x12 = 1.
+        x43 = 0.5
+        nspan = 5
+        return CAERO5(eid, pid, p1, x12, p4, x43,
+                      cp=0, nspan=nspan, lspan=0, ntheory=0, nthick=0, comment='')
+
     def __init__(self, eid, pid, p1, x12, p4, x43,
                  cp=0, nspan=0, lspan=0, ntheory=0, nthick=0,
                  comment=''):
@@ -3295,6 +3433,14 @@ class CAERO5(BaseCard):
 
 class PAERO5(BaseCard):
     type = 'PAERO5'
+    _properties = ['ltaus_id', 'lxis_id']
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        caoci = [0., 0., 0.]
+        return PAERO5(pid, caoci, nalpha=0, lalpha=0, nxis=0, lxis=0, ntaus=0, ltaus=0, comment='')
+
     def __init__(self, pid, caoci,
                  nalpha=0, lalpha=0,
                  nxis=0, lxis=0,
@@ -3458,6 +3604,16 @@ class MONPNT1(BaseCard):
     +---------+---------+------+-----+-----+-------+------+----+----+
     """
     type = 'MONPNT1'
+
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'WING'
+        label = 'Wing Integrated Load to Butline'
+        axes = '6'
+        aecomp_name = 'FLAP'
+        xyz = [0., 1., 2.]
+        return MONPNT1(name, label, axes, aecomp_name, xyz, cp=0, cd=None, comment='')
+
     def __init__(self, name, label, axes, aecomp_name, xyz, cp=0, cd=None, comment=''):
         """
         Creates a MONPNT1 card
@@ -3592,6 +3748,17 @@ class MONPNT1(BaseCard):
 class MONPNT2(BaseCard):
     """MSC Nastran specific card"""
     type = 'MONPNT2'
+
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'WING'
+        label = 'Wing Integrated Load to Butline'
+        table = 'MYTABLE'
+        Type = 'CAT'
+        nddl_item = 42
+        eid = 2
+        return MONPNT2(name, label, table, Type, nddl_item, eid, comment='')
+
     def __init__(self, name, label, table, Type, nddl_item, eid, comment=''):
         BaseCard.__init__(self)
         if comment:
@@ -3650,6 +3817,18 @@ class MONPNT2(BaseCard):
 class MONPNT3(BaseCard):
     """MSC Nastran specific card"""
     type = 'MONPNT3'
+
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'WING'
+        label = 'Wing Integrated Load to Butline'
+        axes = '6'
+        grid_set = 10
+        elem_set = 11
+        xyz = [0., 1., 2.]
+        return MONPNT3(name, label, axes, grid_set, elem_set, xyz,
+                       cp=0, cd=None, xflag=None, comment='')
+
     def __init__(self, name, label, axes, grid_set, elem_set, xyz,
                  cp=0, cd=None, xflag=None, comment=''):
         BaseCard.__init__(self)
@@ -3772,6 +3951,7 @@ class PAERO1(BaseCard):
     """
     type = 'PAERO1'
     _field_map = {1: 'pid'}
+    _properties = ['_field_map']
 
     def _get_field_helper(self, n):
         """
@@ -3840,6 +4020,11 @@ class PAERO1(BaseCard):
     def Bi(self, Bi):
         self.deprecated('Bi', 'caero_body_ids', '1.2')
         self.caero_body_ids = Bi
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        return PAERO1(pid, caero_body_ids=None, comment='')
 
     def __init__(self, pid, caero_body_ids=None, comment=''):
         """
@@ -3939,6 +4124,7 @@ class PAERO2(BaseCard):
         1: 'pid', 2:'orient', 3:'width', 4:'AR', 5:'lrsb', 6:'lrib',
         #7: 'lth1', 8:'lth2',
     }
+    _properties = ['_field_map', 'lth1', 'lth2', ]
 
     def _get_field_helper(self, n):
         """
@@ -3983,6 +4169,21 @@ class PAERO2(BaseCard):
             self.thi[spot] = value
         else:
             self.thn[spot] = value
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        width = 10.
+        AR = 1.
+        thi = [None]
+        thn = [None]
+        orient = 'ZY'
+        return PAERO2(pid, orient, width, AR, thi, thn, lrsb=None, lrib=None, lth=None, comment='')
+
+    #def _finalize_hdf5(self, encoding):
+        #"""hdf5 helper function"""
+        #pass
+        #print(self.get_stats())
 
     def __init__(self, pid, orient, width, AR,
                  thi, thn, lrsb=None, lrib=None, lth=None,
@@ -4201,6 +4402,7 @@ class PAERO3(BaseCard):
     _field_map = {
         1: 'pid', 2:'orient', 3:'width', 4:'AR',
     }
+    _properties = ['npoints']
 
     def _get_field_helper(self, n):
         """
@@ -4249,6 +4451,15 @@ class PAERO3(BaseCard):
             self.x[spot] = value
         else:
             self.y[spot] = value
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        nbox = 1
+        ncontrol_surfaces = 1
+        x = [0., 0., 0.]
+        y = [0., 10., 0.]
+        return PAERO3(pid, nbox, ncontrol_surfaces, x, y, comment='')
 
     def __init__(self, pid, nbox, ncontrol_surfaces, x, y, comment=''):
         """
@@ -4419,6 +4630,15 @@ class PAERO4(BaseCard):
         #else:
             #self.y[spot] = value
 
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        docs = [1, 2]
+        caocs = [1, 2]
+        gapocs = [1, 2]
+        return PAERO4(pid, docs, caocs, gapocs,
+                      cla=0, lcla=0, circ=0, lcirc=0, comment='')
+
     def __init__(self, pid, docs, caocs, gapocs,
                  cla=0, lcla=0, circ=0, lcirc=0, comment=''):
         BaseCard.__init__(self)
@@ -4529,6 +4749,18 @@ class SPLINE1(Spline):
         1: 'eid', 2:'caero', 3:'box1', 4:'box2', 5:'setg', 6:'dz',
         7: 'method', 8:'usage', 9:'nelements', 10:'melements',
     }
+    _properties = ['aero_element_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        caero = 1
+        box1 = 1
+        box2 = 2
+        setg = 3
+        return SPLINE1(eid, caero, box1, box2, setg,
+                       dz=0., method='IPS', usage='BOTH',
+                       nelements=10, melements=10, comment='')
 
     def __init__(self, eid, caero, box1, box2, setg, dz=0., method='IPS',
                  usage='BOTH', nelements=10, melements=10, comment=''):
@@ -4757,6 +4989,17 @@ class SPLINE2(Spline):
         1: 'eid', 2:'caero', 3:'id1', 4:'id2', 5:'setg', 6:'dz',
         7: 'dtor', 8:'cid', 9:'dthx', 10:'dthy',
     }
+    _properties = ['aero_element_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        caero = 1
+        box1 = 1
+        box2 = 2
+        setg = 1
+        return SPLINE2(eid, caero, box1, box2, setg,
+                       dz=0.0, dtor=1.0, cid=0, dthx=0., dthy=0., usage='BOTH', comment='')
 
     def __init__(self, eid, caero, box1, box2, setg, dz=0.0, dtor=1.0, cid=0,
                  dthx=0., dthy=0., usage='BOTH', comment=''):
@@ -4969,12 +5212,25 @@ class SPLINE3(Spline):
     +---------+------+-------+-------+------+----+----+-----+-------+
     """
     type = 'SPLINE3'
+    _properties = ['node_ids']
     _field_map = {
         1: 'eid', 2:'caero', 3:'box_id',
         7: 'a1', 8:'usage',
     }
         #5:'g1', 6:'c1',
         #9:G2,C2,A2...
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        caero = 1
+        box_id = 1
+        components = 1
+        nodes = [2, 3]
+        displacement_components = [2, 3]
+        coeffs = [2., 3.]
+        return SPLINE3(eid, caero, box_id, components, nodes, displacement_components, coeffs,
+                       usage='BOTH')
 
     def __init__(self, eid, caero, box_id, components,
                  nodes, displacement_components, coeffs,
@@ -5003,7 +5259,6 @@ class SPLINE3(Spline):
            3-transverse displacement
            5-pitch angle
            6-relative control angle for CAERO4/5; yaw angle for CAERO2
-
         nodes : List[int]
            Grid point identification number of the independent grid point.
         displacement_components :  : List[int]
@@ -5194,10 +5449,25 @@ class SPLINE4(Spline):
     +---------+-------+-------+--------+-----+------+----+------+-------+
     """
     type = 'SPLINE4'
+    _properties = ['aero_element_ids']
     _field_map = {
         1: 'eid', 2:'caero', 3:'aelist', 5:'setg', 6:'dz',
         7: 'method', 8:'usage', 9:'nelements', 10:'melements',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        caero = 1
+        aelist = 1
+        setg = 1
+        dz = 1.
+        method = 'IPS'
+        usage = 'BOTH'
+        nelements = 1
+        melements = 1
+        return SPLINE4(eid, caero, aelist, setg, dz, method, usage, nelements, melements,
+                       comment='')
 
     def __init__(self, eid, caero, aelist, setg, dz, method, usage,
                  nelements, melements, comment=''):
@@ -5427,11 +5697,24 @@ class SPLINE5(Spline):
 
     """
     type = 'SPLINE5'
+    _properties = ['aero_element_ids']
     _field_map = {
         1: 'eid', 2:'caero', 3:'aelist', 5:'setg', 6:'dz',
         7: 'dtor', 8:'cid', 9:'thx', 10:'thy', 12:'usage',
         13 : 'meth', 15 : 'ftype', 16 : 'rcore',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        caero = 1
+        aelist = 1
+        setg = 1
+        thx = 1.
+        thy = 1.
+        return SPLINE5(eid, caero, aelist, setg, thx, thy,
+                       dz=0., dtor=1.0, cid=0, usage='BOTH', method='BEAM',
+                       ftype='WF2', rcore=None, comment='')
 
     def __init__(self, eid, caero, aelist, setg, thx, thy, dz=0., dtor=1.0, cid=0,
                  usage='BOTH', method='BEAM', ftype='WF2', rcore=None, comment=''):

@@ -11,13 +11,14 @@ The preferences menu handles:
 from __future__ import print_function
 from math import log10, ceil
 
+#import PySide  # for local testing
 from qtpy import QtGui
 from qtpy.QtWidgets import (
     QLabel, QPushButton, QGridLayout, QApplication, QHBoxLayout, QVBoxLayout,
     QSpinBox, QDoubleSpinBox, QColorDialog, QLineEdit, QCheckBox, QComboBox)
 import vtk
 
-from pyNastran.gui.utils.qt.pydialog import PyDialog
+from pyNastran.gui.utils.qt.pydialog import PyDialog, make_font
 from pyNastran.gui.utils.qt.qpush_button_color import QPushButtonColor
 from pyNastran.gui.menus.menu_utils import eval_float_from_string
 
@@ -67,6 +68,7 @@ class PreferencesWindow(PyDialog):
         self._coord_text_scale = data['coord_text_scale'] * 100.
         self._magnify = data['magnify']
         self._text_size = data['text_size']
+        self._highlight_opacity = data['highlight_opacity']
 
         self.annotation_color_float, self.annotation_color_int = _check_color(
             data['annotation_color'])
@@ -76,6 +78,15 @@ class PreferencesWindow(PyDialog):
             data['background_color2'])
         self.text_color_float, self.text_color_int = _check_color(
             data['text_color'])
+        self.highlight_color_float, self.highlight_color_int = _check_color(
+            data['highlight_color'])
+
+        self._nastran_is_element_quality = data['nastran_is_element_quality']
+        self._nastran_is_properties = data['nastran_is_properties']
+        self._nastran_is_3d_bars = data['nastran_is_3d_bars']
+        self._nastran_is_3d_bars_update = data['nastran_is_3d_bars_update']
+        self._nastran_is_bar_axes = data['nastran_is_bar_axes']
+        self._nastran_create_coords = data['nastran_create_coords']
 
         self.setWindowTitle('Preferences')
         self.create_widgets()
@@ -111,6 +122,20 @@ class PreferencesWindow(PyDialog):
         # Text Color
         self.text_color_label = QLabel("Text Color:")
         self.text_color_edit = QPushButtonColor(self.text_color_int)
+
+        #-----------------------------------------------------------------------
+        # Highlight Color
+        self.highlight_opacity_label = QLabel("Highlight Opacity:")
+        self.highlight_opacity_edit = QDoubleSpinBox(self)
+        self.highlight_opacity_edit.setValue(self._highlight_opacity)
+        self.highlight_opacity_edit.setRange(0.1, 1.0)
+        self.highlight_opacity_edit.setDecimals(1)
+        self.highlight_opacity_edit.setSingleStep(0.1)
+        self.highlight_opacity_button = QPushButton("Default")
+
+        # Text Color
+        self.highlight_color_label = QLabel("Highlight Color:")
+        self.highlight_color_edit = QPushButtonColor(self.highlight_color_int)
 
         #-----------------------------------------------------------------------
         # Background Color
@@ -163,7 +188,7 @@ class PreferencesWindow(PyDialog):
         self.coord_scale_button = QPushButton("Default")
 
         self.coord_scale_edit = QDoubleSpinBox(self)
-        self.coord_scale_edit.setRange(0.1, 100.)
+        self.coord_scale_edit.setRange(0.1, 1000.)
         self.coord_scale_edit.setDecimals(3)
         self.coord_scale_edit.setSingleStep(2.5)
         self.coord_scale_edit.setValue(self._coord_scale)
@@ -172,7 +197,7 @@ class PreferencesWindow(PyDialog):
         self.coord_text_scale_button = QPushButton("Default")
 
         self.coord_text_scale_edit = QDoubleSpinBox(self)
-        self.coord_text_scale_edit.setRange(0.1, 200.)
+        self.coord_text_scale_edit.setRange(0.1, 2000.)
         self.coord_text_scale_edit.setDecimals(3)
         self.coord_text_scale_edit.setSingleStep(2.5)
         self.coord_text_scale_edit.setValue(self._coord_text_scale)
@@ -188,6 +213,25 @@ class PreferencesWindow(PyDialog):
         self.magnify_edit.setMinimum(1)
         self.magnify_edit.setMaximum(10)
         self.magnify_edit.setValue(self._magnify)
+
+        #-----------------------------------------------------------------------
+        self.nastran_is_element_quality_checkbox = QCheckBox('Element Quality')
+        self.nastran_is_properties_checkbox = QCheckBox('Properties')
+        self.nastran_is_3d_bars_checkbox = QCheckBox('3D Bars')
+        self.nastran_is_3d_bars_update_checkbox = QCheckBox('Update 3D Bars')
+        self.nastran_create_coords_checkbox = QCheckBox('Coords')
+        self.nastran_is_bar_axes_checkbox = QCheckBox('Bar Axes')
+        self.nastran_is_3d_bars_checkbox.setDisabled(True)
+        self.nastran_is_3d_bars_update_checkbox.setDisabled(True)
+        #self.nastran_is_bar_axes_checkbox.setDisabled(True)
+
+        self.nastran_is_element_quality_checkbox.setChecked(self._nastran_is_element_quality)
+        self.nastran_is_properties_checkbox.setChecked(self._nastran_is_properties)
+        self.nastran_is_3d_bars_checkbox.setChecked(self._nastran_is_3d_bars)
+        #self.nastran_is_3d_bars_update_checkbox.setChecked(self._nastran_is_3d_bars_update)
+        self.nastran_is_3d_bars_update_checkbox.setChecked(False)
+        self.nastran_is_bar_axes_checkbox.setChecked(self._nastran_is_bar_axes)
+        self.nastran_create_coords_checkbox.setChecked(self._nastran_create_coords)
 
         #-----------------------------------------------------------------------
         # closing
@@ -271,6 +315,14 @@ class PreferencesWindow(PyDialog):
         grid.addWidget(self.background_color_edit, irow, 1)
         irow += 1
 
+        grid.addWidget(self.highlight_color_label, irow, 0)
+        grid.addWidget(self.highlight_color_edit, irow, 1)
+        irow += 1
+
+        grid.addWidget(self.highlight_opacity_label, irow, 0)
+        grid.addWidget(self.highlight_opacity_edit, irow, 1)
+        irow += 1
+
         grid.addWidget(self.text_color_label, irow, 0)
         grid.addWidget(self.text_color_edit, irow, 1)
         irow += 1
@@ -322,6 +374,30 @@ class PreferencesWindow(PyDialog):
         grid.addWidget(self.picker_size_edit, irow, 1)
         irow += 1
 
+        #--------------------------------------------------
+        grid_nastran = QGridLayout()
+        irow = 0
+
+        grid_nastran.addWidget(self.nastran_create_coords_checkbox, irow, 0)
+        irow += 1
+
+        grid_nastran.addWidget(self.nastran_is_element_quality_checkbox, irow, 0)
+        grid_nastran.addWidget(self.nastran_is_properties_checkbox, irow, 1)
+        irow += 1
+
+        grid_nastran.addWidget(self.nastran_is_bar_axes_checkbox, irow, 0)
+        irow += 1
+
+        grid_nastran.addWidget(self.nastran_is_3d_bars_checkbox, irow, 0)
+        grid_nastran.addWidget(self.nastran_is_3d_bars_update_checkbox, irow, 1)
+        irow += 1
+
+        #bold_font = make_font(self._default_font_size, is_bold=True)
+        vbox_nastran = QVBoxLayout()
+        self.nastran_label = QLabel('Nastran:')
+        vbox_nastran.addWidget(self.nastran_label)
+        vbox_nastran.addLayout(grid_nastran)
+
         #self.create_legend_widgets()
         #grid2 = self.create_legend_layout()
         ok_cancel_box = QHBoxLayout()
@@ -331,6 +407,7 @@ class PreferencesWindow(PyDialog):
 
         vbox = QVBoxLayout()
         vbox.addLayout(grid)
+        vbox.addLayout(vbox_nastran)
         #vbox.addStretch()
         #vbox.addLayout(grid2)
         vbox.addStretch()
@@ -350,6 +427,9 @@ class PreferencesWindow(PyDialog):
         self.background_color_edit.clicked.connect(self.on_background_color)
         self.background_color2_edit.clicked.connect(self.on_background_color2)
         self.gradient_scale_checkbox.clicked.connect(self.on_gradient_scale)
+
+        self.highlight_color_edit.clicked.connect(self.on_highlight_color)
+        self.highlight_opacity_edit.valueChanged.connect(self.on_highlight_opacity)
 
         self.text_color_edit.clicked.connect(self.on_text_color)
         self.text_size_edit.valueChanged.connect(self.on_text_size)
@@ -373,10 +453,51 @@ class PreferencesWindow(PyDialog):
         self.clipping_min_button.clicked.connect(self.on_default_clipping_min)
         self.clipping_max_button.clicked.connect(self.on_default_clipping_max)
 
+        #------------------------------------
+        # format-specific
+        self.nastran_is_element_quality_checkbox.clicked.connect(self.on_nastran_is_element_quality)
+        self.nastran_is_properties_checkbox.clicked.connect(self.on_nastran_is_properties)
+        self.nastran_is_3d_bars_checkbox.clicked.connect(self.on_nastran_is_3d_bars)
+        self.nastran_is_3d_bars_update_checkbox.clicked.connect(self.on_nastran_is_3d_bars)
+        self.nastran_is_bar_axes_checkbox.clicked.connect(self.on_nastran_is_bar_axes)
+        self.nastran_create_coords_checkbox.clicked.connect(self.on_nastran_create_coords)
+        #------------------------------------
+
         self.apply_button.clicked.connect(self.on_apply)
         self.ok_button.clicked.connect(self.on_ok)
         self.cancel_button.clicked.connect(self.on_cancel)
         # closeEvent
+
+    def on_nastran_is_element_quality(self):
+        """set the nastran element quality preferences"""
+        is_checked = self.nastran_is_element_quality_checkbox.isChecked()
+        if self.win_parent is not None:
+            self.win_parent.settings.nastran_is_element_quality = is_checked
+    def on_nastran_is_properties(self):
+        """set the nastran properties preferences"""
+        is_checked = self.nastran_is_properties_checkbox.isChecked()
+        if self.win_parent is not None:
+            self.win_parent.settings.nastran_is_properties = is_checked
+    def on_nastran_is_3d_bars(self):
+        """set the nastran properties preferences"""
+        is_checked = self.nastran_is_3d_bars_checkbox.isChecked()
+        if self.win_parent is not None:
+            self.win_parent.settings.nastran_is_3d_bars = is_checked
+    def on_nastran_is_3d_bars_update(self):
+        """set the nastran properties preferences"""
+        is_checked = self.nastran_is_3d_bars_update_checkbox.isChecked()
+        if self.win_parent is not None:
+            self.win_parent.settings.nastran_is_3d_bars_update = is_checked
+    def on_nastran_is_bar_axes(self):
+        """set the nastran properties preferences"""
+        is_checked = self.nastran_is_bar_axes_checkbox.isChecked()
+        if self.win_parent is not None:
+            self.win_parent.settings.nastran_is_bar_axes = is_checked
+    def on_nastran_create_coords(self):
+        """set the nastran properties preferences"""
+        is_checked = self.nastran_create_coords_checkbox.isChecked()
+        if self.win_parent is not None:
+            self.win_parent.settings.nastran_create_coords = is_checked
 
     def on_font(self, value=None):
         """update the font for the current window"""
@@ -385,6 +506,8 @@ class PreferencesWindow(PyDialog):
         font = QtGui.QFont()
         font.setPointSize(value)
         self.setFont(font)
+        bold_font = make_font(value, is_bold=True)
+        self.nastran_label.setFont(bold_font)
 
     def on_annotation_size(self, value=None):
         """update the annotation size"""
@@ -445,6 +568,25 @@ class PreferencesWindow(PyDialog):
         if passed:
             self.background_color2_int = rgb_color_ints
             self.background_color2_float = rgb_color_floats
+
+    def on_highlight_color(self):
+        """ Choose a highlight color"""
+        title = "Choose a highlight color"
+        rgb_color_ints = self.highlight_color_int
+        color_edit = self.highlight_color_edit
+        func_name = 'set_highlight_color'
+        passed, rgb_color_ints, rgb_color_floats = self._background_color(
+            title, color_edit, rgb_color_ints, func_name)
+        if passed:
+            self.highlight_color_int = rgb_color_ints
+            self.highlight_color_float = rgb_color_floats
+
+    def on_highlight_opacity(self, value=None):
+        if value is None:
+            value = self.highlight_opacity_edit.value()
+        self._highlight_opacity = value
+        if self.win_parent is not None:
+            self.win_parent.settings.set_highlight_opacity(value)
 
     def _background_color(self, title, color_edit, rgb_color_ints, func_name):
         """helper method for ``on_background_color`` and ``on_background_color2``"""
@@ -618,7 +760,7 @@ def _check_color(color_float):
     color_int = [int(colori * 255) for colori in color_float]
     return color_float, color_int
 
-def main():
+def main():  # pragma: no cover
     # kills the program when you hit Cntl+C from the command line
     # doesn't save the current state as presumably there's been an error
     import signal
@@ -643,12 +785,22 @@ def main():
         'text_size' : 12,
         'text_color' : (0., 1., 0.), # green
 
+        'highlight_color' : (1., 1., 0.), # yellow
+        'highlight_opacity' : 0.8,
+
         'annotation_color' : (1., 0., 0.), # red
         'annotation_size' : 11,
         'picker_size' : 10.,
 
         'min_clip' : 0.,
         'max_clip' : 10,
+
+        'nastran_is_element_quality' : True,
+        'nastran_is_properties' : True,
+        'nastran_is_3d_bars' : True,
+        'nastran_is_3d_bars_update' : True,
+        'nastran_is_bar_axes' : True,
+        'nastran_create_coords' : True,
 
         'dim_max' : 502.,
 
@@ -658,5 +810,5 @@ def main():
     # Enter the main loop
     app.exec_()
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

@@ -9,7 +9,7 @@ import sys
 import io
 from typing import List, Dict, Union, Optional, Tuple, Any, cast
 from codecs import open
-from six import string_types, iteritems, PY2, StringIO
+from six import string_types, iteritems, PY2, PY3, StringIO
 
 from pyNastran.bdf.bdf_interface.utils import print_filename
 from pyNastran.bdf.field_writer_8 import print_card_8
@@ -60,17 +60,16 @@ class WriteMesh(BDFAttributes):
             out_filename = save_file_dialog(title, wildcard_wx, wildcard_qt)
             assert out_filename is not None, out_filename
 
+        has_read_write = hasattr(out_filename, 'read') and hasattr(out_filename, 'write')
         if PY2:
-            if not (hasattr(out_filename, 'read') and hasattr(out_filename, 'write')
-                   ) or isinstance(out_filename, (file, StringIO)):
+            if has_read_write or isinstance(out_filename, (file, StringIO)):
                 return out_filename
             elif not isinstance(out_filename, string_types):
                 msg = 'out_filename=%r must be a string; type=%s' % (
                     out_filename, type(out_filename))
                 raise TypeError(msg)
         else:
-            if not(hasattr(out_filename, 'read') and hasattr(out_filename, 'write')
-                  ) or isinstance(out_filename, io.IOBase):
+            if has_read_write or isinstance(out_filename, io.IOBase):
                 return out_filename
             elif not isinstance(out_filename, string_types):
                 msg = 'out_filename=%r must be a string; type=%s' % (
@@ -86,7 +85,7 @@ class WriteMesh(BDFAttributes):
 
         assert isinstance(interspersed, bool)
         fname = print_filename(out_filename)
-        self.log.debug("***writing %s" % fname)
+        #self.log.debug("***writing %s" % fname)
         return out_filename
 
     def write_caero_model(self, caero_bdf_filename='caero.bdf', is_subpanel_model=True):
@@ -178,7 +177,7 @@ class WriteMesh(BDFAttributes):
 
     def write_bdf(self, out_filename=None, encoding=None,
                   size=8, is_double=False,
-                  interspersed=False, enddata=None, close=True):
+                  interspersed=False, enddata=None, write_header=True, close=True):
         # type: (Optional[Union[str, StringIO]], Optional[str], int, bool, bool, Optional[bool], bool) -> None
         """
         Writes the BDF.
@@ -207,15 +206,17 @@ class WriteMesh(BDFAttributes):
         enddata : bool; default=None
             bool - enable/disable writing ENDDATA
             None - depends on input BDF
+        write_header : bool; default=True
+            flag for writing the pyNastran header
         close : bool; default=True
             should the output file be closed
         """
         is_long_ids = False
 
-        # required for MasterModelTaxi
         if self.is_bdf_vectorized:
             pass
         else:
+            # required for MasterModelTaxi
             is_long_ids = (
                 self.nodes and max(self.nodes) > 100000000 or
                 self.coords and max(self.coords) > 100000000 or
@@ -231,15 +232,31 @@ class WriteMesh(BDFAttributes):
         #self.write_caero_model()
         out_filename = self._output_helper(out_filename,
                                            interspersed, size, is_double)
-        self.log.debug('---starting BDF.write_bdf of %s---' % out_filename)
         encoding = self.get_encoding(encoding)
         #assert encoding.lower() in ['ascii', 'latin1', 'utf8'], encoding
 
-        if hasattr(out_filename, 'read') and hasattr(out_filename, 'write'):
+        has_read_write = hasattr(out_filename, 'read') and hasattr(out_filename, 'write')
+        if has_read_write:
             bdf_file = out_filename
+            #if (PY2 and isinstance(out_filename, (file, StringIO)) or
+                #PY3 and isinstance(out_filename, io.IOBase)):
+                #pass
         else:
+            self.log.debug('---starting BDF.write_bdf of %s---' % out_filename)
             bdf_file = open(out_filename, 'w', encoding=encoding)
-        self._write_header(bdf_file, encoding)
+        self._write_header(bdf_file, encoding, write_header=write_header)
+
+
+        if self.superelement_models:
+            bdf_file.write('$' + '*'*80+'\n')
+            for superelement_id, superelement in sorted(self.superelement_models.items()):
+                bdf_file.write('BEGIN SUPER=%s\n' % superelement_id)
+                superelement.write_bdf(out_filename=bdf_file, encoding=encoding,
+                                       size=size, is_double=is_double,
+                                       interspersed=interspersed, enddata=False, write_header=False, close=False)
+                bdf_file.write('$' + '*'*80+'\n')
+            bdf_file.write('BEGIN BULK\n')
+
         self._write_params(bdf_file, size, is_double, is_long_ids=is_long_ids)
         self._write_nodes(bdf_file, size, is_double, is_long_ids=is_long_ids)
 
@@ -248,6 +265,7 @@ class WriteMesh(BDFAttributes):
         else:
             self._write_elements(bdf_file, size, is_double, is_long_ids=is_long_ids)
             self._write_properties(bdf_file, size, is_double, is_long_ids=is_long_ids)
+            #self._write_properties_by_element_type(bdf_file, size, is_double, is_long_ids)
         self._write_materials(bdf_file, size, is_double, is_long_ids=is_long_ids)
 
         self._write_masses(bdf_file, size, is_double, is_long_ids=is_long_ids)
@@ -260,7 +278,7 @@ class WriteMesh(BDFAttributes):
         if close:
             bdf_file.close()
 
-    def _write_header(self, bdf_file, encoding):
+    def _write_header(self, bdf_file, encoding, write_header=True):
         # type: (Any, bool) -> None
         """
         Writes the executive and case control decks.
@@ -272,7 +290,7 @@ class WriteMesh(BDFAttributes):
             else:
                 self.punch = True
 
-        if self.nastran_format:
+        if self.nastran_format and write_header:
             bdf_file.write('$pyNastran: version=%s\n' % self.nastran_format)
             bdf_file.write('$pyNastran: punch=%s\n' % self.punch)
             bdf_file.write('$pyNastran: encoding=%s\n' % encoding)
@@ -313,8 +331,11 @@ class WriteMesh(BDFAttributes):
         """
         if self.case_control_deck:
             msg = '$CASE CONTROL DECK\n'
-            msg += str(self.case_control_deck)
-            assert 'BEGIN BULK' in msg, msg
+            if self.superelement_models:
+                msg += self.case_control_deck.write(write_begin_bulk=False)
+            else:
+                msg += str(self.case_control_deck)
+                assert 'BEGIN BULK' in msg, msg
             bdf_file.write(''.join(msg))
 
     def _write_elements(self, bdf_file, size=8, is_double=False, is_long_ids=None):
@@ -600,7 +621,8 @@ class WriteMesh(BDFAttributes):
         # type: (Any, int, bool) -> None
         """Writes the contact cards sorted by ID"""
         is_contact = (self.bcrparas or self.bctadds or self.bctparas
-                      or self.bctsets or self.bsurf or self.bsurfs)
+                      or self.bctsets or self.bsurf or self.bsurfs
+                      or self.bconp or self.blseg)
         if is_contact:
             bdf_file.write('$CONTACT\n')
             for (unused_id, bcrpara) in sorted(self.bcrparas.items()):
@@ -616,6 +638,10 @@ class WriteMesh(BDFAttributes):
                 bdf_file.write(bsurfi.write_card(size, is_double))
             for (unused_id, bsurfsi) in sorted(self.bsurfs.items()):
                 bdf_file.write(bsurfsi.write_card(size, is_double))
+            for (unused_id, bconp) in sorted(self.bconp.items()):
+                bdf_file.write(bconp.write_card(size, is_double))
+            for (unused_id, blseg) in sorted(self.blseg.items()):
+                bdf_file.write(blseg.write_card(size, is_double))
 
     def _write_coords(self, bdf_file, size=8, is_double=False, is_long_ids=None):
         # type: (Any, int, bool) -> None
@@ -964,7 +990,8 @@ class WriteMesh(BDFAttributes):
         # type: (Any, int, bool) -> None
         """Writes the properties in a sorted order"""
         size, is_long_ids = self._write_mesh_long_ids_size(size, is_long_ids)
-        if self.properties:
+        is_properties = self.properties or self.pelast or self.pdampt or self.pbusht
+        if is_properties:
             bdf_file.write('$PROPERTIES\n')
             prop_groups = (self.properties, self.pelast, self.pdampt, self.pbusht)
             if is_long_ids:
@@ -978,6 +1005,66 @@ class WriteMesh(BDFAttributes):
                 for prop_group in prop_groups:
                     for unused_pid, prop in sorted(prop_group.items()):
                         bdf_file.write(prop.write_card(size, is_double))
+
+    def _write_properties_by_element_type(self, bdf_file, size=8, is_double=False, is_long_ids=None):
+        # type: (Any, int, bool) -> None
+        """
+        Writes the properties in a sorted order by property type grouping
+
+        TODO: Missing some property types.
+        """
+        size, is_long_ids = self._write_mesh_long_ids_size(size, is_long_ids)
+        is_properties = self.properties or self.pelast or self.pdampt or self.pbusht
+        if not is_properties:
+            return
+        from collections import defaultdict, OrderedDict
+
+        propertys_class_to_property_types = OrderedDict()
+        # prop_class -> property types
+        propertys_class_to_property_types['spring'] = ['PELAS', 'PELAST']
+        propertys_class_to_property_types['damper'] = ['PDAMP', 'PDAMPT']
+        propertys_class_to_property_types['rod'] = ['PROD', 'PTUBE']
+        propertys_class_to_property_types['bar'] = ['PBAR', 'PBARL', 'PBRSECT']
+        propertys_class_to_property_types['beam'] = ['PBEAM', 'PBEAML', 'PBMSECT']
+        propertys_class_to_property_types['bush'] = ['PBUSH', 'PBUSH1D', 'PBUSH2D']
+        propertys_class_to_property_types['shell'] = ['PSHEAR', 'PSHELL', 'PCOMP', 'PCOMPG']
+        propertys_class_to_property_types['solid'] = ['PSOLID']
+
+        property_type_to_property_class = {
+            #'other' : [],
+        }
+        # the inverse of propertys_class_to_property_types
+        for prop_class, prop_types in propertys_class_to_property_types.items():
+            for prop_type in prop_types:
+                property_type_to_property_class[prop_type] = prop_class
+
+        #if is_properties:
+
+        # put each property object into a class (e.g., CQUAD4 -> PCOMP)
+        properties_by_class = defaultdict(list)
+        prop_groups = (self.properties, self.pelast, self.pdampt, self.pbusht)
+        for properties in prop_groups:
+            for pid, prop in properties.items():
+                prop_class = property_type_to_property_class[prop.type]
+                print(prop.type, '->', prop_class)
+                properties_by_class[prop_class].append(prop)
+
+        bdf_file.write('$PROPERTIES\n')
+        for prop_class, prop_types in propertys_class_to_property_types.items():
+            print(prop_class, prop_types)
+            #for prop_type in prop_types:
+                #if prop_type not in properties_by_class:
+                    #continue
+                #print('  ', prop_type)
+            props = properties_by_class[prop_class]
+            if not props:
+                continue
+            bdf_file.write('$' + '-' * 80 + '\n')
+            bdf_file.write('$ %s\n' % prop_class)
+
+            for prop in props:
+                bdf_file.write(prop.write_card(size, is_double))
+        bdf_file.write('$' + '-' * 80 + '\n')
 
     def _write_rejects(self, bdf_file, size=8, is_double=False, is_long_ids=None):
         # type: (Any, int, bool) -> None
@@ -1004,7 +1091,6 @@ class WriteMesh(BDFAttributes):
 
         if self.reject_lines:
             bdf_file.write('$REJECT_LINES\n')
-
             for reject_lines in self.reject_lines:
                 if isinstance(reject_lines, (list, tuple)):
                     for reject in reject_lines:
@@ -1102,6 +1188,11 @@ class WriteMesh(BDFAttributes):
         for unused_seid, csupext in sorted(self.csupext.items()):
             bdf_file.write(csupext.write_card(size, is_double))
 
+        for unused_seid, sebulk in sorted(self.sebulk.items()):
+            bdf_file.write(sebulk.write_card(size, is_double))
+        for unused_seid, seconct in sorted(self.seconct.items()):
+            bdf_file.write(seconct.write_card(size, is_double))
+
         for unused_seid, sebndry in sorted(self.sebndry.items()):
             bdf_file.write(sebndry.write_card(size, is_double))
         for unused_seid, seelt in sorted(self.seelt.items()):
@@ -1109,6 +1200,8 @@ class WriteMesh(BDFAttributes):
         for unused_seid, seexcld in sorted(self.seexcld.items()):
             bdf_file.write(seexcld.write_card(size, is_double))
 
+        for unused_seid, selabel in sorted(self.selabel.items()):
+            bdf_file.write(selabel.write_card(size, is_double))
         for unused_seid, seloc in sorted(self.seloc.items()):
             bdf_file.write(seloc.write_card(size, is_double))
         for unused_seid, seload in sorted(self.seload.items()):

@@ -77,6 +77,26 @@ class HyperelasticMaterial(Material):
 class CREEP(Material):
     type = 'CREEP'
 
+    @classmethod
+    def _init_from_empty(cls):
+        mid = 1
+        T0 = 42.
+        exp = 1.
+        form = 'cat'
+        tidkp = 42
+        tidcp = 43
+        tidcs = 44
+        thresh = 6.
+        Type = 7
+        a = 8.
+        b = 9.
+        c = 10.
+        d = 11.
+        e = 12.
+        f = 13.
+        g = 14.
+        return CREEP(mid, T0, exp, form, tidkp, tidcp, tidcs, thresh, Type, a, b, c, d, e, f, g, comment='')
+
     def __init__(self, mid, T0, exp, form, tidkp, tidcp, tidcs, thresh, Type,
                  a, b, c, d, e, f, g, comment=''):
         Material.__init__(self)
@@ -241,7 +261,20 @@ class NXSTRAT(BaseCard):
     +---------+---------+--------+--------+--------+--------+--------+--------+
     """
     type = 'NXSTRAT'
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        params = {'AUTO' : 1}
+        return NXSTRAT(sid, params, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        keys, values = self.params
+        self.params = {key : value for key, value in zip(keys, values)}
+
     def __init__(self, sid, params, comment=''):
+        if comment:
+            self.comment = comment
         self.sid = sid
         self.params = params
 
@@ -339,6 +372,7 @@ class MAT1(IsotropicMaterial):
         'SC' : 'sc', #11 : 'sc',
         'SS' : 'ss', #12 : 'ss',
     }
+    _properties = ['_field_map', 'mp_name_map']
 
     def __init__(self, mid, E, G, nu,
                  rho=0.0, a=0.0, tref=0.0, ge=0.0,
@@ -393,6 +427,62 @@ class MAT1(IsotropicMaterial):
         self.Sc = Sc
         self.Ss = Ss
         self.mcsid = mcsid
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, mids):
+        """exports the materials in a vectorized way"""
+        comments = []
+        e = []
+        g = []
+        nu = []
+        rho = []
+        a = []
+        tref = []
+        ge = []
+        St = []
+        Sc = []
+        Ss = []
+        mcsid = []
+        for mid in mids:
+            material = model.materials[mid]
+            #comments.append(element.comment)
+
+            if material.e is None:
+                e.append(np.nan)
+            else:
+                e.append(material.e)
+
+            if material.g is None:
+                e.append(np.nan)
+            else:
+                g.append(material.g)
+
+            if material.nu is None:
+                nu.append(np.nan)
+            else:
+                nu.append(material.nu)
+
+            rho.append(material.rho)
+            a.append(material.a)
+            tref.append(material.tref)
+            ge.append(material.ge)
+            St.append(material.St)
+            Sc.append(material.Sc)
+            Ss.append(material.Ss)
+            mcsid.append(material.mcsid)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('mid', data=mids)
+        h5_file.create_dataset('E', data=e)
+        h5_file.create_dataset('G', data=g)
+        h5_file.create_dataset('nu', data=nu)
+        h5_file.create_dataset('A', data=a)
+        h5_file.create_dataset('rho', data=rho)
+        h5_file.create_dataset('tref', data=tref)
+        h5_file.create_dataset('ge', data=ge)
+        h5_file.create_dataset('St', data=St)
+        h5_file.create_dataset('Sc', data=Sc)
+        h5_file.create_dataset('Ss', data=Ss)
+        h5_file.create_dataset('mcsid', data=mcsid)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -714,6 +804,7 @@ class MAT2(AnisotropicMaterial):
         'TREF' : 'tref', #8 : 'tref',
         #'GE' : 'ge', #9 : 'ge',
     }
+    _properties = ['_field_map', 'mp_name_map']
 
     def __init__(self, mid, G11, G12, G13, G22, G23, G33,
                  rho=0., a1=None, a2=None, a3=None, tref=0., ge=0.,
@@ -739,6 +830,60 @@ class MAT2(AnisotropicMaterial):
         self.Sc = Sc
         self.Ss = Ss
         self.mcsid = mcsid
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, mids):
+        """exports the materials in a vectorized way"""
+        comments = []
+        G = []
+        rho = []
+        a = []
+        tref = []
+        ge = []
+
+        St = []
+        Sc = []
+        Ss = []
+        mcsid = []
+        for mid in mids:
+            material = model.materials[mid]
+            #comments.append(element.comment)
+            Gi = [
+                material.G11, material.G22, material.G33,
+                material.G12, material.G13, material.G23,
+            ]
+            G.append(Gi)
+            rho.append(material.rho)
+
+            ai = [ai if ai is not None else np.nan
+                  for ai in [material.a1, material.a2, material.a3]]
+            a.append(ai)
+            tref.append(material.tref)
+            ge.append(material.ge)
+
+            St.append(material.St)
+            Sc.append(material.Sc)
+            Ss.append(material.Ss)
+            if material.mcsid is None:
+                mcsid.append(-1)
+            else:
+                mcsid.append(material.mcsid)
+        #h5_file.create_dataset('_comment', data=comments)
+        St = [value if value is not None else np.nan for value in St]
+        Sc = [value if value is not None else np.nan for value in Sc]
+        Ss = [value if value is not None else np.nan for value in Ss]
+
+        h5_file.create_dataset('mid', data=mids)
+        h5_file.create_dataset('G', data=G)
+        h5_file.create_dataset('A', data=a)
+        h5_file.create_dataset('rho', data=rho)
+        h5_file.create_dataset('tref', data=tref)
+        h5_file.create_dataset('ge', data=ge)
+
+        h5_file.create_dataset('St', data=St)
+        h5_file.create_dataset('Sc', data=Sc)
+        h5_file.create_dataset('Ss', data=Ss)
+        h5_file.create_dataset('mcsid', data=mcsid)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -969,6 +1114,66 @@ class MAT3(OrthotropicMaterial):
         self.matt3_ref = None
 
     @classmethod
+    def export_to_hdf5(cls, h5_file, model, mids):
+        """exports the elements in a vectorized way"""
+        comments = []
+        ex = []
+        eth = []
+        ez = []
+
+        nuxth = []
+        nuthz = []
+        nuzx = []
+        gzx = []
+
+        ax = []
+        ath = []
+        az = []
+
+        rho = []
+        tref = []
+        ge = []
+        for mid in mids:
+            material = model.materials[mid]
+            #comments.append(element.comment)
+            ex.append(material.ex)
+            eth.append(material.eth)
+            ez.append(material.ez)
+
+            nuxth.append(material.nuxth)
+            nuthz.append(material.nuthz)
+            nuzx.append(material.nuzx)
+            gzx.append(material.gzx)
+
+            ax.append(material.ax)
+            ath.append(material.ath)
+            az.append(material.az)
+
+            rho.append(material.rho)
+            tref.append(material.tref)
+            ge.append(material.ge)
+        gzx = [value if value is not None else np.nan for value in gzx]
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('mid', data=mids)
+
+        h5_file.create_dataset('Ex', data=ex)
+        h5_file.create_dataset('Eth', data=eth)
+        h5_file.create_dataset('Ez', data=az)
+
+        h5_file.create_dataset('Nuxth', data=nuxth)
+        h5_file.create_dataset('Nuzx', data=nuzx)
+        h5_file.create_dataset('Nuthz', data=nuthz)
+        h5_file.create_dataset('Gzx', data=gzx)
+
+        h5_file.create_dataset('Ax', data=ax)
+        h5_file.create_dataset('Ath', data=ath)
+        h5_file.create_dataset('Az', data=az)
+
+        h5_file.create_dataset('rho', data=rho)
+        h5_file.create_dataset('tref', data=tref)
+        h5_file.create_dataset('ge', data=ge)
+
+    @classmethod
     def add_card(cls, card, comment=''):
         """
         Adds a MAT3 card from ``BDF.add_card(...)``
@@ -1118,6 +1323,13 @@ class MAT4(ThermalMaterial):
         8:'ref_enthalpy', 9:'tch', 10:'tdelta', 11:'qlat',
     }
 
+    @classmethod
+    def _init_from_empty(cls):
+        mid = 1
+        k = 100.
+        return MAT4(mid, k, cp=0.0, rho=1.0, H=None, mu=None, hgen=1.0,
+                    ref_enthalpy=None, tch=None, tdelta=None, qlat=None, comment='')
+
     def __init__(self, mid, k, cp=0.0, rho=1.0, H=None, mu=None,
                  hgen=1.0, ref_enthalpy=None, tch=None, tdelta=None, qlat=None, comment=''):
         ThermalMaterial.__init__(self)
@@ -1255,6 +1467,12 @@ class MAT5(ThermalMaterial):  # also AnisotropicMaterial
     _field_map = {
         1: 'mid', 2:'kxx', 3:'kxy', 4:'kxz', 5: 'kyy', 6:'kyz', 7:'kzz',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        mid = 1
+        return MAT5(mid, kxx=0., kxy=0., kxz=0., kyy=0., kyz=0., kzz=0.,
+                    cp=0., rho=1., hgen=1., comment='')
 
     def __init__(self, mid, kxx=0., kxy=0., kxz=0., kyy=0., kyz=0., kzz=0.,
                  cp=0., rho=1., hgen=1., comment=''):
@@ -1463,6 +1681,7 @@ class MAT8(OrthotropicMaterial):
         #'SC' : 'sc', #11 : 'sc',
         #'SS' : 'ss', #12 : 'ss',
     }
+    _properties = ['_field_map', 'mp_name_map']
 
     def __init__(self, mid, e11, e22, nu12, g12=0.0, g1z=1e8, g2z=1e8, rho=0.,
                  a1=0., a2=0., tref=0.,
@@ -1502,6 +1721,79 @@ class MAT8(OrthotropicMaterial):
         self.F12 = F12
         self.strn = strn
         self.matt8_ref = None
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, mids):
+        """exports the materials in a vectorized way"""
+        comments = []
+        e11 = []
+        e22 = []
+        nu12 = []
+        g12 = []
+        g1z = []
+        g2z = []
+        rho = []
+        a1 = []
+        a2 = []
+        tref = []
+        Xt = []
+        Xc = []
+        Yt = []
+        Yc = []
+        S = []
+        ge = []
+        F12 = []
+        strn = []
+        for mid in mids:
+            material = model.materials[mid]
+            #comments.append(element.comment)
+
+            e11.append(material.e11)
+            e22.append(material.e22)
+            nu12.append(material.nu12)
+            g12.append(material.g12)
+            g1z.append(material.g1z)
+            g2z.append(material.g2z)
+
+            rho.append(material.rho)
+            a1.append(material.a1)
+            a2.append(material.a2)
+            tref.append(material.tref)
+            ge.append(material.ge)
+
+            Xt.append(material.Xt)
+            Xc.append(material.Xc)
+            Yt.append(material.Yt)
+            Yc.append(material.Yc)
+
+            S.append(material.S)
+            F12.append(material.F12)
+            strn.append(material.strn)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('mid', data=mids)
+
+        h5_file.create_dataset('E11', data=e11)
+        h5_file.create_dataset('E22', data=e22)
+        h5_file.create_dataset('Nu12', data=nu12)
+        h5_file.create_dataset('G12', data=g12)
+        h5_file.create_dataset('G1z', data=g1z)
+        h5_file.create_dataset('G2z', data=g2z)
+
+        h5_file.create_dataset('A1', data=a1)
+        h5_file.create_dataset('A2', data=a2)
+        h5_file.create_dataset('rho', data=rho)
+        h5_file.create_dataset('tref', data=tref)
+        h5_file.create_dataset('ge', data=ge)
+
+        h5_file.create_dataset('Xt', data=Xt)
+        h5_file.create_dataset('Xc', data=Xc)
+
+        h5_file.create_dataset('Yt', data=Yt)
+        h5_file.create_dataset('Yc', data=Yc)
+
+        h5_file.create_dataset('S', data=S)
+        h5_file.create_dataset('F12', data=F12)
+        h5_file.create_dataset('strn', data=strn)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -1761,6 +2053,7 @@ class MAT9(AnisotropicMaterial):
         'TREF' : 'tref', #8 : 'tref',
         'GE' : 'ge', #9 : 'ge',
     }
+    _properties = ['_field_map', 'mp_name_map']
 
     def __init__(self, mid,
                  G11=0., G12=0., G13=0., G14=0., G15=0., G16=0.,
@@ -1803,6 +2096,31 @@ class MAT9(AnisotropicMaterial):
         self.tref = tref
         self.ge = ge
         assert len(self.A) == 6, A
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, mids):
+        """exports the elements in a vectorized way"""
+        comments = []
+        G = []
+        rho = []
+        a = []
+        tref = []
+        ge = []
+        for mid in mids:
+            material = model.materials[mid]
+            #comments.append(element.comment)
+            G.append(material.D())
+            rho.append(material.rho)
+            a.append(material.A)
+            tref.append(material.tref)
+            ge.append(material.ge)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('mid', data=mids)
+        h5_file.create_dataset('G', data=G)
+        h5_file.create_dataset('A', data=a)
+        h5_file.create_dataset('rho', data=rho)
+        h5_file.create_dataset('tref', data=tref)
+        h5_file.create_dataset('ge', data=ge)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -2010,6 +2328,15 @@ class MAT10(Material):
     _field_map = {
         1: 'mid', 2:'bulk', 3:'rho', 4:'c', 5:'ge', 6:'gamma',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        mid = 1
+        bulk = 10.
+        c = 20.
+        return MAT10(mid, bulk=bulk, rho=None, c=c, ge=0.0, gamma=None,
+                     table_bulk=None, table_rho=None, table_ge=None,
+                     table_gamma=None, comment='')
 
     def __init__(self, mid, bulk=None, rho=None, c=None, ge=0.0, gamma=None,
                  table_bulk=None, table_rho=None, table_ge=None, table_gamma=None,
@@ -2373,6 +2700,23 @@ class MAT11(Material):
         #'SC' : 'sc', #11 : 'sc',
         #'SS' : 'ss', #12 : 'ss',
     }
+    _properties = ['_field_map', 'mp_name_map']
+
+    @classmethod
+    def _init_from_empty(cls):
+        mid = 1
+        e1 = 1.
+        e2 = 2.
+        e3 = 3.
+        nu12 = 0.3
+        nu13 = 0.2
+        nu23 = 0.25
+        g12 = 10.
+        g13 = 20.
+        g23 = 30.
+        return MAT11(mid, e1, e2, e3, nu12, nu13, nu23, g12, g13, g23,
+                     rho=0.0, a1=0.0, a2=0.0, a3=0.0, tref=0.0, ge=0.0, comment='')
+
     def __init__(self, mid, e1, e2, e3, nu12, nu13, nu23, g12, g13, g23, rho=0.0,
                  a1=0.0, a2=0.0, a3=0.0, tref=0.0, ge=0.0, comment=''):
         Material.__init__(self)
@@ -2543,6 +2887,20 @@ class MAT3D(Material):
     This is a VABS specific card that is almost identical to the MAT11.
     """
     type = 'MAT3D'
+
+    @classmethod
+    def _init_from_empty(cls):
+        mid = 1
+        e1 = 1.
+        e2 = 2.
+        e3 = 3.
+        nu12 = 0.3
+        nu13 = 0.2
+        nu23 = 0.25
+        g12 = 10.
+        g13 = 20.
+        g23 = 30.
+        return MAT3D(mid, e1, e2, e3, nu12, nu13, nu23, g12, g13, g23, rho=0.0, comment='')
 
     def __init__(self, mid, e1, e2, e3, nu12, nu13, nu23, g12, g13, g23, rho=0.0,
                  comment=''):
@@ -2773,6 +3131,22 @@ class MATHE(HyperelasticMaterial):
     """
     type = 'MATHE'
 
+    @classmethod
+    def _init_from_empty(cls):
+        mid = 1
+        model = 'OGDEN'
+        bulk = 3.
+        rho = 4.
+        texp = 5.
+        mus = [6.]
+        alphas = [7.]
+        betas = [8.]
+        mooney = []
+        sussbat = []
+        aboyce = []
+        return MATHE(mid, model, bulk, rho, texp, mus, alphas, betas,
+                     mooney, sussbat, aboyce, comment='')
+
     def __init__(self, mid, model, bulk, rho, texp,
                  mus, alphas, betas, mooney, sussbat, aboyce, comment=''):
         HyperelasticMaterial.__init__(self)
@@ -2986,6 +3360,15 @@ class MATHE(HyperelasticMaterial):
 
 class MATHP(HyperelasticMaterial):
     type = 'MATHP'
+
+    @classmethod
+    def _init_from_empty(cls):
+        mid = 1
+        return MATHP(mid, a10=0., a01=0., d1=None, rho=0., av=0., tref=0., ge=0.,
+                     na=1, nd=1, a20=0., a11=0., a02=0., d2=0., a30=0., a21=0., a12=0., a03=0.,
+                     d3=0., a40=0., a31=0., a22=0., a13=0., a04=0., d4=0., a50=0., a41=0.,
+                     a32=0., a23=0., a14=0., a05=0., d5=0.,
+                     tab1=None, tab2=None, tab3=None, tab4=None, tabd=None, comment='')
 
     def __init__(self, mid, a10=0., a01=0., d1=None, rho=0., av=0., tref=0., ge=0., na=1, nd=1,
                  a20=0., a11=0., a02=0., d2=0.,

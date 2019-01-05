@@ -18,7 +18,7 @@ import pyNastran
 from pyNastran.op2.op2_interface.op2_f06_common import OP2_F06_Common
 from pyNastran.op2.op2_interface.result_set import ResultSet
 
-def make_stamp(title, today=None):
+def make_stamp(title, today=None, build=None):
     if title is None:
         title = ''
 
@@ -36,8 +36,9 @@ def make_stamp(title, today=None):
     str_today = str_today  #.strip()
 
     #release_date = '02/08/12'  # pyNastran.__releaseDate__
-    release_date = ''
-    build = 'pyNastran v%s %s' % (pyNastran.__version__, release_date)
+    if build is None:
+        release_date = ''
+        build = 'pyNastran v%s %s' % (pyNastran.__version__, release_date)
     out = '1    %-67s   %-19s %-22s PAGE %%5i\n' % (title.strip(), str_today, build)
     return out
 
@@ -192,7 +193,7 @@ class F06Writer(OP2_F06_Common):
         self.subcase_key = defaultdict(list)
         self.end_options = {}
 
-        self._results = ResultSet(self.get_all_results())
+        self._results = ResultSet(self.get_all_results(), self.log)
 
     def get_all_results(self):
         all_results = ['stress', 'strain', 'element_forces', 'constraint_forces'] + self.get_table_types()
@@ -562,7 +563,7 @@ class F06Writer(OP2_F06_Common):
         header_old = ['     DEFAULT                                                                                                                        \n',
                       '\n', ' \n']
         header = copy.deepcopy(header_old)
-        unallowed_results = ['eigenvectors', 'eigenvalues']
+        unallowed_results = ['eigenvectors', 'eigenvalues', 'params']
         res_types = list(self.get_result(table_type) for table_type in sorted(self.get_table_types())
                          if table_type not in unallowed_results)
 

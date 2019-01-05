@@ -47,6 +47,13 @@ class RROD(RigidElement):
     +------+-----+----+----+-----+-----+-------+
     """
     type = 'RROD'
+    _properties = ['dependent_nodes', 'independent_nodes']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        nids = [1, 2]
+        return RROD(eid, nids, cma=None, cmb=None, alpha=0.0, comment='')
 
     def __init__(self, eid, nids, cma=None, cmb=None, alpha=0.0, comment=''):
         """
@@ -223,6 +230,17 @@ class RBAR(RigidElement):
     +------+-----+----+----+--------+-----+-----+-----+-------+
     """
     type = 'RBAR'
+    _properties = ['dependent_nodes', 'independent_nodes']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        nids = [1, 2]
+        cna = '123'
+        cnb = '456'
+        cma = None
+        cmb = None
+        return RBAR(eid, nids, cna, cnb, cma, cmb, alpha=0., comment='')
 
     def __init__(self, eid, nids, cna, cnb, cma, cmb, alpha=0., comment=''):
         """
@@ -573,6 +591,16 @@ class RBE1(RigidElement):  # maybe not done, needs testing
     +------+-----+-----+-----+-------+-----+-----+-----+
     """
     type = 'RBE1'
+    _properties = ['Gmi_node_ids', 'Gni_node_ids', 'dependent_nodes', 'independent_nodes']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        Gni = [2]
+        Cni = ['2']
+        Gmi = [3]
+        Cmi = ['4']
+        return RBE1(eid, Gni, Cni, Gmi, Cmi, alpha=0., comment='')
 
     def __init__(self, eid, Gni, Cni, Gmi, Cmi, alpha=0., comment=''):
         """
@@ -783,6 +811,15 @@ class RBE2(RigidElement):
     """
     type = 'RBE2'
     _field_map = {1: 'eid', 2:'gn', 3:'cm'}
+    _properties = ['Gmi_node_ids', 'dependent_nodes', 'independent_nodes']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        gn = 1
+        cm = '123'
+        Gmi = [2, 3]
+        return RBE2(eid, gn, cm, Gmi, alpha=0.0, comment='')
 
     def _update_field_helper(self, n, value):
         """
@@ -804,6 +841,24 @@ class RBE2(RigidElement):
         return value
 
     def __init__(self, eid, gn, cm, Gmi, alpha=0.0, comment=''):
+        """
+        Creates an RBE2 element
+
+        Parameters
+        ----------
+        eid : int
+            element id
+        gn : int
+           Identification number of grid point to which all six independent
+           degrees-of-freedom for the element are assigned.
+        cm : str
+            Component numbers of the dependent degrees-of-freedom in the
+            global coordinate system at grid points GMi.
+        Gmi : List[int]
+            dependent nodes
+        alpha : float; default=0.0
+            ???
+        """
         RigidElement.__init__(self)
         if comment:
             self.comment = comment
@@ -885,6 +940,7 @@ class RBE2(RigidElement):
         #print("eid=%s gn=%s cm=%s Gmi=%s alpha=%s"
               #% (self.eid, self.gn, self.cm, self.Gmi, self.alpha))
         #raise NotImplementedError('RBE2 data...')
+        assert len(Gmi) > 0, Gmi
         return RBE2(eid, gn, cm, Gmi, alpha, comment=comment)
 
     def update(self, maps):
@@ -1072,6 +1128,19 @@ class RBE3(RigidElement):
     +------+---------+---------+---------+------+--------+--------+------+--------+
     """
     type = 'RBE3'
+    _properties = ['wt_cg_groups', 'ref_grid_id', 'Gijs_node_ids',
+                   'dependent_nodes', 'independent_nodes']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        refgrid = 1
+        refc = '123'
+        weights = [1.]
+        comps = ['1']
+        Gijs = [2]
+        return RBE3(eid, refgrid, refc, weights, comps, Gijs,
+                    Gmi=None, Cmi=None, alpha=0.0, comment='')
 
     def __init__(self, eid, refgrid, refc, weights, comps, Gijs,
                  Gmi=None, Cmi=None, alpha=0.0, comment=''):
@@ -1414,8 +1483,10 @@ class RBE3(RigidElement):
 
 class RSPLINE(RigidElement):
     type = 'RSPLINE'
+    _properties = ['dependent_nodes', 'independent_nodes']
     """
-    Defines multipoint constraints for the interpolation of displacements at grid points.
+    Defines multipoint constraints for the interpolation of displacements
+    at grid points.
 
     +---------+-----+-----+----+----+--------+----+----+----+
     |    1    |  2  |  3  |  4 |  5 |    6   |  7 |  8 |  9 |
@@ -1425,6 +1496,15 @@ class RSPLINE(RigidElement):
     |         |  C4 |  G5 | C5 | G6 | -etc.- |    |    |    |
     +---------+-----+-----+----+----+--------+----+----+----+
     """
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        independent_nid = 2
+        dependent_nids = [3, 4]
+        dependent_components = ['4', '5']
+        return RSPLINE(eid, independent_nid, dependent_nids, dependent_components,
+                       diameter_ratio=0.1, comment='')
+
     def __init__(self, eid, independent_nid, dependent_nids, dependent_components,
                  diameter_ratio=0.1, comment=''):
         """
@@ -1587,6 +1667,15 @@ class RSSCON(RigidElement):
     | RSSCON |  116 | INTC |  2  |  1  |  3  |     |     |     |
     +--------+------+------+-----+-----+-----+-----+-----+-----+
     """
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        rigid_type = 'GRID'
+        return RSSCON(eid, rigid_type,
+                      shell_eid=None, solid_eid=None, a_solid_grids=None,
+                      b_solid_grids=None, shell_grids=None, comment='')
+
     def __init__(self, eid, rigid_type,
                  shell_eid=None, solid_eid=None,
                  a_solid_grids=None, b_solid_grids=None, shell_grids=None,

@@ -19,7 +19,7 @@ defines various methods to access high level BDF data:
    - get_node_ids_with_elements(self, eids, msg='')
    - get_elements_nodes_by_property_type(self, dtype='int32',
                                          save_element_types=False)
-   - get_element_nodes_by_element_type(self, dtype='int32', solids=None)
+   - get_elements_properties_nodes_by_element_type(self, dtype='int32', solids=None)
    - get_element_ids_list_with_pids(self, pids=None)
    - get_pid_to_node_ids_and_elements_array(self, pids=None, etypes=None, idtype='int32')
    - get_element_ids_dict_with_pids(self, pids=None, stop_if_no_eids=True)
@@ -292,7 +292,7 @@ class GetCard(GetMethods):
 
             #print('card_type=%r' % card_type)
             try:
-                key = rslot_map[card_type]  # update attributes.py ~line 590
+                key = rslot_map[card_type]  # update attributes.py ~line 640
             except:
                 print(rslot_map.keys())
                 self.log.error("card_type=%r' hasn't been added to "
@@ -1902,7 +1902,7 @@ class GetCard(GetMethods):
                 the nodes corresponding to the element
         """
         etypes_no_pids = [
-            'CELAS4', 'CDAMP4', 'CHBDYG',
+            'CELAS4', 'CDAMP4', 'CHBDYG', 'GENEL',
         ]
 
         etypes = [
@@ -2039,7 +2039,7 @@ class GetCard(GetMethods):
           eids_list = model.get_element_ids_list_with_pids(pids)
         """
         etypes_no_pids = [
-            'CELAS4', 'CDAMP4', 'CHBDYG',
+            'CELAS4', 'CDAMP4', 'CHBDYG', 'GENEL',
         ]
 
         if pids is None:
@@ -2099,7 +2099,7 @@ class GetCard(GetMethods):
         pid_to_eids_ieids_map = defaultdict(list)
 
         etypes_no_pids = [
-            'CELAS4', 'CDAMP4', 'CHBDYG',
+            'CELAS4', 'CDAMP4', 'CHBDYG', 'GENEL',
         ]
         etypes_none_nodes = [
             'CELAS1', 'CELAS2', 'CELAS4',
@@ -2235,7 +2235,8 @@ class GetCard(GetMethods):
             #'CDAMP4' : -23,
             #'CHBDYG' : -108,
         #}
-        elements_without_properties = ['CONROD', 'CELAS2', 'CELAS4', 'CDAMP2', 'CDAMP4', 'CHBDYG']
+        elements_without_properties = [
+            'CONROD', 'CELAS2', 'CELAS4', 'CDAMP2', 'CDAMP4', 'CHBDYG', 'GENEL']
         for eid, element in self.elements.items():
             try:
                 pid = element.Pid()
@@ -2339,10 +2340,12 @@ class GetCard(GetMethods):
             assert pid not in pid_to_eids_map, 'pid=%s is already used and must be used by PHBDY' % pid
             pid_to_eids_map[pid] = []
 
+        elements_without_properties = [
+            'CONROD', 'CONM2', 'CELAS2', 'CELAS4', 'CDAMP2', 'CDAMP4', 'GENEL']
         for eid in self.element_ids:
             element = self.Element(eid)
             element_type = element.type
-            if element_type in ['CONROD', 'CONM2', 'CELAS2', 'CELAS4', 'CDAMP2', 'CDAMP4']:
+            if element_type in elements_without_properties:
                 continue
             if hasattr(element, 'pid'):
                 pid = element.Pid()

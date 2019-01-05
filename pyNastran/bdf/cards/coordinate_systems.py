@@ -858,6 +858,10 @@ class Coord(BaseCard):
         xyz_local = self.xyz_to_coord(xyz_coord)
         return xyz_local
 
+    def __properties__(self):
+        """the list of @property attributes"""
+        return ['global_to_local', 'local_to_global']
+
     @property
     def global_to_local(self):
         r"""
@@ -1507,7 +1511,7 @@ class Cord2x(Coord):
         .. note :: no type checking
 
         """
-        assert isinstance(rid, int), rid
+        assert isinstance(rid, integer_types), 'rid=%r type=%s' % (rid, type(rid))
         Coord.__init__(self)
         if comment:
             self.comment = comment
@@ -1530,6 +1534,37 @@ class Cord2x(Coord):
 
         self.rid_ref = None
         self._finish_setup()
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, cids):
+        """exports the coords in a vectorized way"""
+        comments = []
+        rid = []
+        e1 = []
+        e2 = []
+        e3 = []
+        for cid in cids:
+            coord = model.coords[cid]
+            #comments.append(coord.comment)
+            rid.append(coord.rid)
+            e1.append(coord.e1)
+            e2.append(coord.e2)
+            e3.append(coord.e3)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('cid', data=cids)
+        h5_file.create_dataset('rid', data=rid)
+        h5_file.create_dataset('e1', data=e1)
+        h5_file.create_dataset('e2', data=e2)
+        h5_file.create_dataset('e3', data=e3)
+
+    @classmethod
+    def init_from_empty(cls):
+        cid = None
+        e1 = None
+        e2 = None
+        e3 = None
+        rid = 0
+        return cls(cid, e1, e2, e3, rid, comment='')
 
     @classmethod
     def _add(cls, cid, origin, zaxis, xzplane, rid=0, comment=''):
@@ -1881,6 +1916,19 @@ class Cord1x(Coord):
     """
     rid = 0  # used only for transform to global
 
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, cids):
+        """exports the coords in a vectorized way"""
+        comments = []
+        nodes = []
+        for cid in cids:
+            coord = model.coords[cid]
+            #comments.append(coord.comment)
+            nodes.append([coord.g1, coord.g2, coord.g3])
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('cid', data=cids)
+        h5_file.create_dataset('nodes', data=nodes)
+
     def Rid(self):
         """Gets the reference coordinate system self.rid"""
         return self.rid
@@ -2114,6 +2162,13 @@ class Cord1x(Coord):
 class GMCORD(BaseCard):
     """defines the GMCOORD class"""
     type = 'GMCORD'
+
+    @classmethod
+    def _init_from_empty(cls):
+        cid = 1
+        entity = 2
+        gm_ids = [34]
+        return GMCORD(cid, entity, gm_ids, comment='')
 
     def __init__(self, cid, entity, gm_ids, comment=''):
         """Creates a GMCOORD"""

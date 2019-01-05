@@ -302,6 +302,7 @@ def run_op2(op2_filename, make_geom=False, write_bdf=False, read_bdf=None,
             op2.set_as_msc()
             op2_nv.set_as_msc()
             op2_bdf.set_as_msc()
+
         if post is not None:
             op2.post = -4
             op2_nv.post = -4
@@ -318,6 +319,17 @@ def run_op2(op2_filename, make_geom=False, write_bdf=False, read_bdf=None,
         op2 = OP2(debug=debug, log=log)
         # have to double write this until ???
         op2_nv = OP2(debug=debug, log=log, debug_file=debug_file)
+
+        if is_nx is None:
+            pass
+        elif is_nx:
+            print('set as nx')
+            op2.set_as_nx()
+            op2_nv.set_as_nx()
+        else:
+            op2.set_as_msc()
+            op2_nv.set_as_msc()
+
         if post is not None:
             op2.post = -4
             op2_nv.post = -4
@@ -376,10 +388,10 @@ def run_op2(op2_filename, make_geom=False, write_bdf=False, read_bdf=None,
             print("Memory usage     end: %s (KB); %.2f (MB)" % (kb, mb))
 
         if IS_HDF5 and export_hdf5:
-            from pyNastran.op2.op2_interface.hdf5_interface import load_op2_from_hdf5
+            from pyNastran.op2.op2_interface.hdf5_interface import load_op2_from_hdf5_filename
             h5_filename = model + '.test_op2.h5'
-            op2.export_to_hdf5(h5_filename)
-            load_op2_from_hdf5(h5_filename, log=op2.log)
+            op2.export_to_hdf5_filename(h5_filename)
+            load_op2_from_hdf5_filename(h5_filename, log=op2.log)
         if write_f06:
             for is_sort2 in sort_methods:
                 op2.write_f06(model + '.test_op2.f06', is_mag_phase=is_mag_phase,
@@ -535,7 +547,7 @@ def get_test_op2_data():
 
     msg = "Usage:\n"
     #is_release = True
-    options = '[--skip_dataframe] [-z] [-w] [-t] [-s <sub>] [-x <arg>]... [--nx] [--safe] [--post POST]'
+    options = '[--skip_dataframe] [-z] [-w] [-t] [-s <sub>] [-x <arg>]... [--nx] [--safe] [--post POST] [--load_hdf5]'
     if is_release:
         line1 = "test_op2 [-q] [-b] [-c] [-g] [-n] [-f] %s OP2_FILENAME\n" % options
     else:
@@ -564,6 +576,7 @@ def get_test_op2_data():
     msg += "  -f, --write_f06        Writes the f06 to fem.test_op2.f06\n"
     msg += "  -z, --is_mag_phase     F06 Writer writes Magnitude/Phase instead of\n"
     msg += "                         Real/Imaginary (still stores Real/Imag); [default: False]\n"
+    msg += "  --load_hdf5            Load as HDF5 (default=False)\n"
     msg += "  --skip_dataframe       Disables pandas dataframe building; [default: False]\n"
     msg += "  -s <sub>, --subcase    Specify one or more subcases to parse; (e.g. 2_5)\n"
     msg += "  -w, --is_sort2         Sets the F06 transient to SORT2\n"
@@ -622,6 +635,7 @@ def main():
             run_op2,
             data['OP2_FILENAME'],
             make_geom=data['--geometry'],
+            load_as_h5=data['--load_hdf5'],
             write_bdf=data['--write_bdf'],
             write_f06=data['--write_f06'],
             write_op2=data['--write_op2'],
@@ -649,6 +663,7 @@ def main():
         run_op2(
             data['OP2_FILENAME'],
             make_geom=data['--geometry'],
+            load_as_h5=data['--load_hdf5'],
             write_bdf=data['--write_bdf'],
             write_f06=data['--write_f06'],
             write_op2=data['--write_op2'],

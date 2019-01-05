@@ -11,7 +11,7 @@ defines:
 from __future__ import print_function
 import os
 import sys
-from pyNastran.bdf.mesh_utils.bdf_renumber import bdf_renumber
+from pyNastran.bdf.mesh_utils.bdf_renumber import bdf_renumber, superelement_renumber
 from pyNastran.bdf.mesh_utils.bdf_merge import bdf_merge
 from pyNastran.bdf.mesh_utils.export_mcids import export_mcids
 from pyNastran.bdf.mesh_utils.pierce_shells import pierce_shell_model
@@ -71,7 +71,7 @@ def cmd_line_equivalence():  # pragma: no cover
 
         "Positional Arguments:\n"
         "  IN_BDF_FILENAME   path to input BDF/DAT/NAS file\n"
-        "  EQ_TOL            the spherical equivalence tolerance\n\n"
+        "  EQ_TOL            the spherical equivalence tolerance\n"
         #"  OUT_BDF_FILENAME  path to output BDF/DAT/NAS file\n"
         '\n'
 
@@ -220,18 +220,20 @@ def cmd_line_renumber():  # pragma: no cover
     import pyNastran
     msg = (
         "Usage:\n"
-        "  bdf renumber IN_BDF_FILENAME [-o OUT_BDF_FILENAME]\n"
+        '  bdf renumber IN_BDF_FILENAME OUT_BDF_FILENAME [--superelement] [--size SIZE]\n'
+        '  bdf renumber IN_BDF_FILENAME                  [--superelement] [--size SIZE]\n'
         '  bdf renumber -h | --help\n'
         '  bdf renumber -v | --version\n'
         '\n'
 
-        "Positional Arguments:\n"
-        "  IN_BDF_FILENAME    path to input BDF/DAT/NAS file\n"
-       #"  OUT_BDF_FILENAME   path to output BDF/DAT/NAS file\n"
+        'Positional Arguments:\n'
+        '  IN_BDF_FILENAME    path to input BDF/DAT/NAS file\n'
+        '  OUT_BDF_FILENAME   path to output BDF/DAT/NAS file\n'
         '\n'
 
         'Options:\n'
-        "  -o OUT, --output  OUT_BDF_FILENAME  path to output BDF/DAT/NAS file\n\n"
+        '--superelement  calls superelement_renumber\n'
+        '--size SIZE     set the field size (default=16)\n\n'
 
         'Info:\n'
         '  -h, --help      show this help message and exit\n'
@@ -246,19 +248,27 @@ def cmd_line_renumber():  # pragma: no cover
     #}
     data = docopt(msg, version=ver)
     print(data)
-    size = 16
     bdf_filename = data['IN_BDF_FILENAME']
-    bdf_filename_out = data['--output']
+    bdf_filename_out = data['OUT_BDF_FILENAME']
     if bdf_filename_out is None:
         bdf_filename_out = 'renumber.bdf'
+
+    size = 16
+    if data['--size']:
+        size = int(data['--size'])
 
     #cards_to_skip = [
         #'AEFACT', 'CAERO1', 'CAERO2', 'SPLINE1', 'SPLINE2',
         #'AERO', 'AEROS', 'PAERO1', 'PAERO2', 'MKAERO1']
     cards_to_skip = []
-    bdf_renumber(bdf_filename, bdf_filename_out, size=size, is_double=False,
-                 starting_id_dict=None, round_ids=False,
-                 cards_to_skip=cards_to_skip)
+    if data['--superelement']:
+        superelement_renumber(bdf_filename, bdf_filename_out, size=size, is_double=False,
+                              starting_id_dict=None, #round_ids=False,
+                              cards_to_skip=cards_to_skip)
+    else:
+        bdf_renumber(bdf_filename, bdf_filename_out, size=size, is_double=False,
+                     starting_id_dict=None, round_ids=False,
+                     cards_to_skip=cards_to_skip)
 
 def cmd_line_mirror():  # pragma: no cover
     """command line interface to write_bdf_symmetric"""
@@ -278,9 +288,9 @@ def cmd_line_mirror():  # pragma: no cover
         '\n'
 
         'Options:\n'
-        "  -o OUT, --output  OUT_BDF_FILENAME  path to output BDF/DAT/NAS file\n\n"
-        "  --plane PLANE                       the symmetry plane (xz, yz, xy)\n\n"
-        '  --tol   TOL                         the spherical equivalence tolerance\n'
+        "  -o OUT, --output  OUT_BDF_FILENAME  path to output BDF/DAT/NAS file\n"
+        "  --plane PLANE                       the symmetry plane (xz, yz, xy); default=xz\n"
+        '  --tol   TOL                         the spherical equivalence tolerance; default=1e-6\n'
         '  --noeq                              disable equivalencing\n'
         "\n" #  (default=0.000001)
 
@@ -303,7 +313,9 @@ def cmd_line_mirror():  # pragma: no cover
     if data['--noeq'] is not None:
         tol = -1.
 
-    plane = data['--plane']
+    plane = 'xz'
+    if data['--plane'] is not None:
+        plane = data['--plane']
 
     print(data)
     size = 16
@@ -376,6 +388,68 @@ def cmd_line_merge():  # pragma: no cover
     cards_to_skip = []
     bdf_merge(bdf_filenames, bdf_filename_out, renumber=True,
               encoding=None, size=size, is_double=False, cards_to_skip=cards_to_skip)
+
+def cmd_line_convert():  # pragma: no cover
+    """command line interface to bdf_merge"""
+    from docopt import docopt
+    import pyNastran
+    msg = (
+        "Usage:\n"
+        '  bdf convert IN_BDF_FILENAME [-o OUT_BDF_FILENAME] [--in_units IN_UNITS] [--out_units OUT_UNITS]\n'
+        '  bdf convert -h | --help\n'
+        '  bdf convert -v | --version\n'
+        '\n'
+
+        'Options:\n'
+        '  -o OUT, --output  OUT_BDF_FILENAME  path to output BDF/DAT/NAS file\n\n'
+        '  --in_units  IN_UNITS                length,mass\n\n'
+        '  --out_units  OUT_UNITS              length,mass\n\n'
+
+        'Info:\n'
+        '  -h, --help      show this help message and exit\n'
+        "  -v, --version   show program's version number and exit\n"
+    )
+    if len(sys.argv) == 1:
+        sys.exit(msg)
+
+    ver = str(pyNastran.__version__)
+    #type_defaults = {
+    #    '--nerrors' : [int, 100],
+    #}
+    data = docopt(msg, version=ver)
+    print(data)
+    size = 16
+    bdf_filename = data['IN_BDF_FILENAME']
+    bdf_filename_out = data['--output']
+    if bdf_filename_out is None:
+        #bdf_filename_out = 'merged.bdf'
+        bdf_filename_out = bdf_filename + '.convert.bdf'
+
+    in_units = data['IN_UNITS']
+    if in_units is None:
+        in_units = 'm,kg'
+
+    out_units = data['OUT_UNITS']
+    if out_units is None:
+        out_units = 'm,kg'
+
+    length_in, mass_in = in_units.split(',')
+    length_out, mass_out = out_units.split(',')
+    units_to = [length_out, mass_out, 's']
+    units = [length_in, mass_in, 's']
+    #cards_to_skip = [
+        #'AEFACT', 'CAERO1', 'CAERO2', 'SPLINE1', 'SPLINE2',
+        #'AERO', 'AEROS', 'PAERO1', 'PAERO2', 'MKAERO1']
+    from pyNastran.bdf.bdf import read_bdf
+    from pyNastran.bdf.mesh_utils.convert import convert
+    model = read_bdf(bdf_filename, validate=True, xref=True,
+                     punch=False, save_file_structure=False,
+                     skip_cards=None, read_cards=None,
+                     encoding=None, log=None, debug=True, mode='msc')
+    convert(model, units_to, units=units)
+    for prop in model.properties.values():
+        prop.comment = ''
+    model.write_bdf(bdf_filename_out)
 
 
 def cmd_line_export_mcids():  # pragma: no cover
@@ -556,6 +630,7 @@ def cmd_line_filter():  # pragma: no cover
     import pyNastran
     msg = (
         'Usage:\n'
+        '  bdf filter IN_BDF_FILENAME [-o OUT_CAERO_BDF_FILENAME]\n'
         '  bdf filter IN_BDF_FILENAME [-o OUT_CAERO_BDF_FILENAME] [--x YSIGN_X] [--y YSIGN_Y] [--z YSIGN_Z]\n'
         '  bdf filter -h | --help\n'
         '  bdf filter -v | --version\n'
@@ -566,7 +641,7 @@ def cmd_line_filter():  # pragma: no cover
         '\n'
 
         'Options:\n'
-        ' -o OUT, --output  OUT_BDF_FILENAME         path to output BDF file\n'
+        ' -o OUT, --output  OUT_BDF_FILENAME         path to output BDF file (default=filter.bdf)\n'
         " --x YSIGN_X                                a string (e.g., '< 0.')\n"
         " --y YSIGN_Y                                a string (e.g., '< 0.')\n"
         " --z YSIGN_Z                                a string (e.g., '< 0.')\n"
@@ -575,6 +650,12 @@ def cmd_line_filter():  # pragma: no cover
         'Info:\n'
         '  -h, --help      show this help message and exit\n'
         "  -v, --version   show program's version number and exit\n"
+        '\n'
+        'Examples\n'
+        '1. remove unused cards:\n'
+        '   >>> bdf filter fem.bdf'
+        '2. remove GRID points and associated cards with y value < 0:\n'
+        "   >>> bdf filter fem.bdf --y '< 0.'"
     )
     if len(sys.argv) == 1:
         sys.exit(msg)
@@ -659,11 +740,11 @@ def cmd_line_filter():  # pragma: no cover
             model._type_to_id_map[etype].remove(eid)
             del model.elements[eid]
 
-        #update_nodes(model, nid_cp_cd, xyz_cid0)
-        # unxref'd model
-        remove_unused(model, remove_nids=True, remove_cids=True,
-                      remove_pids=True, remove_mids=True)
-        model.write_bdf(bdf_filename_out)
+    #update_nodes(model, nid_cp_cd, xyz_cid0)
+    # unxref'd model
+    remove_unused(model, remove_nids=True, remove_cids=True,
+                  remove_pids=True, remove_mids=True)
+    model.write_bdf(bdf_filename_out)
 
 def _union(xval, iunion, ix):
     """helper method for ``filter``"""
@@ -724,8 +805,9 @@ def cmd_line():  # pragma: no cover
         'Usage:\n'
         '  bdf merge                       (IN_BDF_FILENAMES)... [-o OUT_BDF_FILENAME]\n'
         '  bdf equivalence                 IN_BDF_FILENAME EQ_TOL\n'
-        '  bdf renumber                    IN_BDF_FILENAME [-o OUT_BDF_FILENAME]\n'
+        '  bdf renumber                    IN_BDF_FILENAME [OUT_BDF_FILENAME] [--superelement] [--size SIZE]\n'
         '  bdf mirror                      IN_BDF_FILENAME [-o OUT_BDF_FILENAME] [--plane PLANE] [--tol TOL]\n'
+        '  bdf convert                     ???\n'
         '  bdf export_mcids                IN_BDF_FILENAME [-o OUT_CSV_FILENAME] [--no_x] [--no_y]\n'
         '  bdf transform                   IN_BDF_FILENAME [-o OUT_BDF_FILENAME] [--shift XYZ]\n'
         '  bdf export_caero_mesh           IN_BDF_FILENAME [-o OUT_BDF_FILENAME]\n'
@@ -743,6 +825,7 @@ def cmd_line():  # pragma: no cover
         '  bdf equivalence        -h | --help\n'
         '  bdf renumber           -h | --help\n'
         '  bdf mirror             -h | --help\n'
+        '  bdf convert            -h | --help\n'
         '  bdf export_mcids       -h | --help\n'
         '  bdf transform          -h | --help\n'
         '  bdf filter             -h | --help\n'
@@ -773,6 +856,8 @@ def cmd_line():  # pragma: no cover
         cmd_line_renumber()
     elif sys.argv[1] == 'mirror':
         cmd_line_mirror()
+    elif sys.argv[1] == 'convert':
+        cmd_line_convert()
     elif sys.argv[1] == 'export_mcids':
         cmd_line_export_mcids()
     elif sys.argv[1] == 'split_cbars_by_pin_flags':

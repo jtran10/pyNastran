@@ -24,11 +24,15 @@ from qtpy import QtGui
 from pyNastran.gui.gui_objects.alt_geometry_storage import AltGeometry
 from pyNastran.gui.gui_objects.coord_properties import CoordProperties
 from pyNastran.gui.gui_objects.utils import get_setting
+from pyNastran.utils import object_attributes
 
 BLACK = (0.0, 0.0, 0.0)
 WHITE = (1., 1., 1.)
 GREY = (119/255., 136/255., 153/255.)
-
+ORANGE = (229/255., 92/255., 0.)
+HIGHLIGHT_OPACITY = 0.9
+HIGHLIGHT_POINT_SIZE = 10.
+HIGHLIGHT_LINE_THICKNESS = 5.
 
 class Settings(object):
     """storage class for various settings"""
@@ -51,6 +55,10 @@ class Settings(object):
 
         self.text_size = 14
         self.text_color = BLACK
+        self.highlight_color = ORANGE
+        self.highlight_opacity = HIGHLIGHT_OPACITY
+        self.highlight_point_size = HIGHLIGHT_POINT_SIZE
+        self.highlight_line_thickness = HIGHLIGHT_LINE_THICKNESS
 
         self.show_info = True
         self.show_debug = True
@@ -74,6 +82,13 @@ class Settings(object):
         self.dim_max = 1.0
         #self.annotation_scale = 1.0
 
+        self.nastran_is_element_quality = True
+        self.nastran_is_properties = True
+        self.nastran_is_3d_bars = True
+        self.nastran_is_3d_bars_update = True
+        self.nastran_create_coords = True
+        self.nastran_is_bar_axes = True
+
     def reset_settings(self):
         """helper method for ``setup_gui``"""
         # rgb tuple
@@ -81,8 +96,16 @@ class Settings(object):
         self.background_color = GREY
         self.background_color2 = GREY
 
+        self.annotation_size = 18
         self.annotation_color = BLACK
+
+        self.text_size = 14
         self.text_color = BLACK
+
+        self.highlight_color = ORANGE
+        self.highlight_opacity = HIGHLIGHT_OPACITY
+        self.highlight_point_size = HIGHLIGHT_POINT_SIZE
+        self.highlight_line_thickness = HIGHLIGHT_LINE_THICKNESS
 
         self.show_info = True
         self.show_debug = True
@@ -91,8 +114,6 @@ class Settings(object):
         self.show_error = True
 
         # int
-        self.text_size = 14
-        self.annotation_size = 18
         self.font_size = 8
         self.magnify = 5
 
@@ -108,6 +129,13 @@ class Settings(object):
         # not stored
         self.dim_max = 1.0
         #self.annotation_scale = 1.0
+
+        self.nastran_is_element_quality = True
+        self.nastran_is_properties = True
+        self.nastran_is_3d_bars = True
+        self.nastran_is_3d_bars_update = True
+        self.nastran_create_coords = True
+        self.nastran_is_bar_axes = True
 
     def load(self, settings):
         """helper method for ``setup_gui``"""
@@ -126,11 +154,16 @@ class Settings(object):
         self._set_setting(settings, setting_keys, ['font_size'], self.font_size, auto_type=int)
 
         # the info/debug/gui/command preferences
-        self._set_setting(settings, setting_keys, ['show_info'], self.show_info, True, auto_type=bool)
-        self._set_setting(settings, setting_keys, ['show_debug'], self.show_debug, True, auto_type=bool)
-        self._set_setting(settings, setting_keys, ['show_command'], self.show_command, True, auto_type=bool)
-        self._set_setting(settings, setting_keys, ['show_warning'], self.show_warning, True, auto_type=bool)
-        self._set_setting(settings, setting_keys, ['show_error'], self.show_error, True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['show_info'], self.show_info,
+                          True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['show_debug'], self.show_debug,
+                          True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['show_command'], self.show_command,
+                          True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['show_warning'], self.show_warning,
+                          True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['show_error'], self.show_error,
+                          True, auto_type=bool)
 
         # the vtk panel background color
         self._set_setting(settings, setting_keys, ['use_gradient_background'],
@@ -162,9 +195,22 @@ class Settings(object):
                           BLACK, auto_type=float)
         self._set_setting(settings, setting_keys, ['text_size'], 14, auto_type=int)
 
+        # highlight
+        self._set_setting(settings, setting_keys, ['highlight_color'],
+                          ORANGE, auto_type=float)
+        self._set_setting(settings, setting_keys, ['highlight_opacity'],
+                          HIGHLIGHT_OPACITY, auto_type=float)
+        self._set_setting(settings, setting_keys, ['highlight_point_size'],
+                          HIGHLIGHT_POINT_SIZE, auto_type=float)
+        self._set_setting(settings, setting_keys, ['highlight_line_thickness'],
+                          HIGHLIGHT_LINE_THICKNESS, auto_type=float)
+        #self._set_setting(settings, setting_keys, ['highlight_style'],
+                          #HIGHLIGHT_OPACITY, auto_type=float)
+
         # default colormap for legend
         self._set_setting(settings, setting_keys, ['colormap'],
                           'jet')
+
 
         # general gui sizing
         screen_shape = self._set_setting(settings, setting_keys, ['screen_shape'],
@@ -180,6 +226,19 @@ class Settings(object):
             self.parent.recent_files = settings.value("recent_files", self.recent_files)
         except (TypeError, AttributeError):
             pass
+
+        self._set_setting(settings, setting_keys, ['nastran_is_element_quality'],
+                          self.nastran_is_element_quality, True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['nastran_is_properties'],
+                          self.nastran_is_properties, True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['nastran_is_3d_bars'],
+                          self.nastran_is_3d_bars, True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['nastran_is_3d_bars_update'],
+                          self.nastran_is_3d_bars_update, True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['nastran_create_coords'],
+                          self.nastran_create_coords, True, auto_type=bool)
+        self._set_setting(settings, setting_keys, ['nastran_is_bar_axes'],
+                          self.nastran_is_bar_axes, True, auto_type=bool)
 
         #w = screen_shape.width()
         #h = screen_shape.height()
@@ -227,6 +286,9 @@ class Settings(object):
         settings.setValue('annotation_color', self.annotation_color)
         settings.setValue('text_color', self.text_color)
 
+        settings.setValue('highlight_color', self.highlight_color)
+        settings.setValue('highlight_opacity', self.highlight_opacity)
+
         settings.setValue('show_info', self.show_info)
         settings.setValue('show_debug', self.show_debug)
         settings.setValue('show_command', self.show_command)
@@ -244,6 +306,15 @@ class Settings(object):
 
         # str
         settings.setValue('colormap', self.colormap)
+
+        # format-specific
+        settings.setValue('nastran_is_element_quality', self.nastran_is_element_quality)
+        settings.setValue('nastran_is_properties', self.nastran_is_properties)
+        settings.setValue('nastran_is_3d_bars', self.nastran_is_3d_bars)
+        settings.setValue('nastran_is_3d_bars_update', self.nastran_is_3d_bars_update)
+        settings.setValue('nastran_create_coords', self.nastran_create_coords)
+        settings.setValue('nastran_is_bar_axes', self.nastran_is_bar_axes)
+
 
         #screen_shape = QtGui.QDesktopWidget().screenGeometry()
         main_window = self.parent.window()
@@ -444,6 +515,31 @@ class Settings(object):
             self.parent.vtk_interactor.Render()
         self.parent.log_command('settings.set_background_color2(%s, %s, %s)' % color)
 
+    def set_highlight_color(self, color):
+        """
+        Set the highlight color
+
+        Parameters
+        ----------
+        color : (float, float, float)
+            RGB values as floats
+        """
+        self.highlight_color = color
+        self.parent.log_command('settings.set_highlight_color(%s, %s, %s)' % color)
+
+    def set_highlight_opacity(self, opacity):
+        """
+        Set the highlight opacity
+
+        Parameters
+        ----------
+        opacity : float
+            0.0 : invisible
+            1.0 : solid
+        """
+        self.highlight_opacity = opacity
+        self.parent.log_command('settings.set_highlight_opacity(%s)' % opacity)
+
     #---------------------------------------------------------------------------
     # TEXT ACTORS - used for lower left notes
 
@@ -498,7 +594,13 @@ class Settings(object):
         self.magnify = magnify
 
     def __repr__(self):
-        return '<Settings>'
+        msg = '<Settings>\n'
+        for key in object_attributes(self, mode='public', keys_to_skip=None):
+            value = getattr(self, key)
+            if isinstance(value, tuple):
+                value = str(value)
+            msg += '  %r = %r\n' % (key, value)
+        return msg
 
 
 def isfloat(value):

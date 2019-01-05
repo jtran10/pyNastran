@@ -159,6 +159,26 @@ class PBEAM(IntegratedLineProperty):
                 pname_fid, type(pname_fid))
             raise NotImplementedError(msg)
 
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        xxb = [0.]
+        so = ['YES']
+        area  = [0.]
+        i1 = [0.]
+        i2 = [0.]
+        i12 = [0.]
+        j = [0.]
+        return PBEAM(pid, mid, xxb, so, area, i1, i2, i12, j, nsm=None,
+                     c1=None, c2=None, d1=None, d2=None,
+                     e1=None, e2=None, f1=None, f2=None,
+                     k1=1., k2=1., s1=0., s2=0.,
+                     nsia=0., nsib=None, cwa=0., cwb=None,
+                     m1a=0., m2a=None, m1b=0., m2b=None,
+                     n1a=0., n2a=None, n1b=0., n2b=None,
+                     comment='')
+
     def __init__(self, pid, mid, xxb, so, area, i1, i2, i12, j, nsm=None,
                  c1=None, c2=None, d1=None, d2=None,
                  e1=None, e2=None, f1=None, f2=None,
@@ -1144,6 +1164,7 @@ class PBEAML(IntegratedLineProperty):
     +--------+---------+---------+---------+---------+---------+---------+---------+---------+
     """
     type = 'PBEAML'
+    _properties = ['valid_types', 'Type']
     valid_types = {
         "ROD": 1,
         "TUBE": 2,
@@ -1221,6 +1242,16 @@ class PBEAML(IntegratedLineProperty):
         else:
             raise NotImplementedError('property_type=%r has not implemented %r in pname_map' % (
                 self.type, pname_fid))
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        beam_type = 'ROD'
+        xxb = [1.]
+        dims = [[1.]]
+        return PBEAML(pid, mid, beam_type, xxb, dims,
+                      so=None, nsm=None, group='MSCBML0', comment='')
 
     def __init__(self, pid, mid, beam_type, xxb, dims, so=None, nsm=None,
                  group='MSCBML0', comment=''):
@@ -1311,6 +1342,13 @@ class PBEAML(IntegratedLineProperty):
         uxxb = np.unique(self.xxb)
         if len(self.xxb) != len(uxxb):
             raise ValueError('xxb=%s unique(xxb)=%s' % (self.xxb, uxxb))
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.dim, list):
+            self.dim = np.asarray(self.dim)
+            self.xxb = np.asarray(self.xxb)
+            self.nsm = np.asarray(self.nsm)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -1605,6 +1643,21 @@ class PBMSECT(LineProperty):
     not done
     """
     type = 'PBMSECT'
+    _properties = ['outp_id']
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 2
+        form = 'FORM'
+        options = [('OUTP', 10)]
+        return PBMSECT(pid, mid, form, options, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        self.brps = {key : value for key, value in zip(*self.brps)}
+        self.ts = {key : value for key, value in zip(*self.ts)}
+        self.inps = {key : value for key, value in zip(*self.inps)}
+        self.core = {key : value for key, value in zip(*self.core)}
 
     def __init__(self, pid, mid, form, options, comment=''):
         LineProperty.__init__(self)
@@ -1888,6 +1941,19 @@ class PBCOMP(LineProperty):
     +--------+------+-----+-----+------+----+-----+--------+-----+
     """
     type = 'PBCOMP'
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        y = [1.]
+        z = [1.]
+        c = [1.]
+        mids = [1]
+        return PBCOMP(pid, mid, y, z, c, mids,
+                      area=0.0, i1=0.0, i2=0.0, i12=0.0, j=0.0, nsm=0.0,
+                      k1=1.0, k2=1.0, m1=0.0, m2=0.0, n1=0.0, n2=0.0,
+                      symopt=0, comment='')
 
     def __init__(self, pid, mid, y, z, c, mids,
                  area=0.0, i1=0.0, i2=0.0, i12=0.0, j=0.0, nsm=0.0,

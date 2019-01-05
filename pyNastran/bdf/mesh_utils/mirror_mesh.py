@@ -34,6 +34,18 @@ def get_model(bdf_filename, log=None, debug=True):
                          debug=debug, mode='msc')
     return model
 
+def bdf_mirror_plane(bdf_filename, plane, mirror_model=None, log=None, debug=True, use_nid_offset=True):
+    """mirrors a model about an arbitrary plane"""
+    model = get_model(bdf_filename, log=log, debug=debug)
+    if mirror_model is None:
+        mirror_model = BDF(debug=debug, log=log, mode='msc')
+
+    nid_offset, plane = _mirror_nodes_plane(model, mirror_model, plane, use_nid_offset=use_nid_offset)
+    eid_offset = _mirror_elements(model, mirror_model, nid_offset)
+    #_mirror_loads(model, nid_offset, eid_offset)
+    return model, mirror_model, nid_offset, eid_offset
+
+
 def bdf_mirror(bdf_filename, plane='xz', log=None, debug=True):
     """
     Mirrors the model about the symmetry plane
@@ -60,8 +72,9 @@ def bdf_mirror(bdf_filename, plane='xz', log=None, debug=True):
 
     """
     model = get_model(bdf_filename, log=log, debug=debug)
+    mirror_model = model
     nid_offset, plane = _mirror_nodes(model, plane=plane)
-    eid_offset = _mirror_elements(model, nid_offset)
+    eid_offset = _mirror_elements(model, mirror_model, nid_offset)
     _mirror_loads(model, nid_offset, eid_offset)
     _mirror_aero(model, nid_offset, plane=plane)
     return model, nid_offset, eid_offset
@@ -151,6 +164,69 @@ def _mirror_nodes(model, plane='xz'):
             model.add_grid(nid2, xyz2, cp=0, cd=node.cd, ps=node.ps, seid=node.seid)
     return nid_offset, plane
 
+def _mirror_nodes_plane(model, mirror_model, plane, use_nid_offset=True):
+    """
+    Mirrors the GRIDs about an arbitrary plane
+
+    .. warning:: doesn't consider coordinate systems;
+                  it could, but you'd need 20 new coordinate systems
+    .. warning:: doesn't mirror SPOINTs, EPOINTs
+
+    https://mathinsight.org/distance_point_plane
+    """
+    nid_offset = 0
+
+    if model.nodes:
+        all_nodes, xyz_cid0 = model.get_xyz_in_coord_no_xref(cid=0, fdtype='float64', sort_ids=True)
+        cid = max(model.coords) + 1
+        origin = plane[0, :]
+
+        # just a triangle's normal vector
+        n1 = plane[0, :]
+        n2 = plane[1, :]
+        n3 = plane[2, :]
+        normal = np.cross(n2 - n1, n3 - n1)
+        normal /= np.linalg.norm(normal)
+
+        #cord2r = model.add_cord2r(cid, plane[0, :], plane[1, :], plane[2, :])
+        #del model.coords[cid]
+        #print(cord2r)
+
+        #origin = cord2r.origin
+        #normal = cord2r.beta()[2, :]
+        #print('normal =', normal)
+        vector = xyz_cid0 - origin
+        assert xyz_cid0.shape == vector.shape, 'xyz_cid0.shape=%s; vector.shape=%s' % (xyz_cid0.shape, vector.shape)
+        v_dot_n = vector * normal[np.newaxis, :]
+        assert v_dot_n.shape == vector.shape, 'v_dot_n.shape=%s; vector.shape=%s' % (v_dot_n.shape, vector.shape)
+        distance = np.linalg.norm(v_dot_n, axis=1)
+        assert v_dot_n.shape[0] == len(distance), 'v_dot_n.shape=%s; distance.shape=%s' % (v_dot_n.shape, distance.shape)
+
+        # we're some distance from the plane, but we don't know the
+        # direction, so we take the max distance from the plane and
+        # project it in the +normal direction and then check that
+        # distance in comparison to the known distance
+        #
+        max_distance = distance.max()
+        imax = np.where(distance == max_distance)[0][0]
+        distance0 = distance[imax]
+        xyz0 = xyz_cid0[imax, :] + distance0 * normal
+        v0_dot_n = xyz0 * normal
+        distance_plus = np.linalg.norm(v0_dot_n)
+
+        if distance_plus > 1.1*distance0:
+            xyz_cid0_2 = xyz_cid0 - 2 * distance[:, np.newaxis] * normal[np.newaxis, :]
+        else:
+            xyz_cid0_2 = xyz_cid0 + 2 * distance[:, np.newaxis] * normal[np.newaxis, :]
+
+        if use_nid_offset:
+            nid_offset = max(all_nodes)
+        for nid, xyz2 in zip(all_nodes, xyz_cid0_2):
+            node = model.nodes[nid]
+            nid2 = nid + nid_offset
+            mirror_model.add_grid(nid2, xyz2, cp=0, cd=node.cd, ps=node.ps, seid=node.seid)
+    return nid_offset, plane
+
 def _plane_to_iy(plane):
     """gets the index fo the mirror plane"""
     plane = plane.strip().lower()
@@ -160,11 +236,11 @@ def _plane_to_iy(plane):
         iy = 1
     elif plane == 'xy':
         iy = 2
-    else:
+    else:  # pragma: no cover
         raise NotImplementedError("plane=%r and must be 'yz', 'xz', or 'xy'." % plane)
     return iy, plane
 
-def _mirror_elements(model, nid_offset):
+def _mirror_elements(model, mirror_model, nid_offset, use_eid_offset=True):
     """
     Mirrors the elements
 
@@ -174,8 +250,12 @@ def _mirror_elements(model, nid_offset):
        2d : CTRIA3, CQUAD4, CTRIA6, CQUAD8, CQUAD, CTRIAR, CQUADR
        3d : ???
        missing : CVISC, CTRIAX, CTRIAX6, CQUADX, CQUADX8, CCONEAX
-    rigid_elements : N/A
-    mass_elements : N/A
+    rigid_elements:
+       loaded: RBE2, RBE3
+       missing: RBAR, RBAR1
+    mass_elements:
+       loaded: CONM2
+       missing CONM1, CMASS1, CMASS2, CMASS3, CMASS4
 
     Notes
     -----
@@ -183,12 +263,17 @@ def _mirror_elements(model, nid_offset):
     Doesn't handle CBEAM SPOINTs
     """
     eid_max_elements = 0
+    eid_max_masses = 0
     eid_max_rigid = 0
-    if model.elements:
-        eid_max_elements = max(model.elements.keys())
-    if model.rigid_elements:
-        eid_max_rigid = max(model.rigid_elements.keys())
-    eid_offset = max(eid_max_elements, eid_max_rigid)
+    if use_eid_offset:
+        if model.elements:
+            eid_max_elements = max(model.elements.keys())
+        if model.masses:
+            eid_max_masses = max(model.masses.keys())
+        if model.rigid_elements:
+            eid_max_rigid = max(model.rigid_elements.keys())
+    eid_offset = max(eid_max_elements, eid_max_masses, eid_max_rigid)
+
     if model.elements:
         shells = set([
             'CTRIA3', 'CQUAD4', 'CTRIA6', 'CQUAD8', 'CQUAD',
@@ -227,8 +312,8 @@ def _mirror_elements(model, nid_offset):
             eid_mirror = eid + eid_offset
             fields = element.repr_fields()
             fields[1] = eid_mirror
-            model.add_card(fields, etype)
-            element2 = model.elements[eid_mirror]
+            mirror_model.add_card(fields, etype)
+            element2 = mirror_model.elements[eid_mirror]
 
             if etype in shells:
                 nodes = [node_id + nid_offset for node_id in nodes]
@@ -275,9 +360,26 @@ def _mirror_elements(model, nid_offset):
             else:
                 try:
                     element2.nodes = nodes
-                except AttributeError:
+                except AttributeError:  # pragma: no cover
                     print(element.get_stats())
                     raise
+
+    if model.masses:
+        for eid, element in sorted(model.masses.items()):
+            eid_mirror = eid + eid_offset
+
+            #print(element.get_stats())
+            if element.type == 'CONM2':
+                old_nid = element.nid
+                new_nid = old_nid + nid_offset
+                mass = element.mass
+                cid = element.cid
+                X = element.X
+                I = element.I
+                mirror_model.add_conm2(eid_mirror, new_nid, mass, cid=cid, X=X, I=I, comment='')
+            else:  # pragma: no cover
+                #print(element.get_stats())
+                mirror_model.log.warning('skipping mass element:\n%s' % str(element))
 
     if model.rigid_elements:
         for eid, rigid_element in sorted(model.rigid_elements.items()):
@@ -307,13 +409,15 @@ def _mirror_elements(model, nid_offset):
 
             eid_mirror = eid + eid_offset
             if rigid_element.type == 'RBE2':
-                rigid_element2 = model.add_rbe2(eid_mirror, Gn_mirror, rigid_element.cm,
-                                                Gmi_node_ids_mirror)
+                rigid_element2 = mirror_model.add_rbe2(eid_mirror, Gn_mirror, rigid_element.cm,
+                                                       Gmi_node_ids_mirror)
             elif rigid_element.type == 'RBE3':
-                rigid_element2 = model.add_rbe3(
+                rigid_element2 = mirror_model.add_rbe3(
                     eid_mirror, ref_grid_id_mirror, rigid_element.refc, rigid_element.weights,
                     rigid_element.comps, Gijs_mirror
                 )
+            else:  # pragma: no cover
+                mirror_model.log.warning('skipping:\n%s' % str(rigid_element))
 
     return eid_offset
 
@@ -344,7 +448,7 @@ def _mirror_loads(model, nid_offset=0, eid_offset=0):
                     surf_or_line=load.surf_or_line,
                     line_load_dir=load.line_load_dir, comment='')
                 loads_new.append(load)
-            else:
+            else:  # pragma: no cover
                 model.log.warning('skipping:\n%s' % load.rstrip())
         if loads_new:
             loads += loads_new
@@ -403,7 +507,7 @@ def _mirror_aero(model, nid_offset, plane):
                 caero_new.flip_normal()
                 caeros.append(caero_new)
                 #print(caero)
-            else:
+            else:  # pragma: no cover
                 model.log.error('skipping (only support CAERO1):\n%s' % caero.rstrip())
 
         for caero in caeros:
@@ -438,7 +542,7 @@ def _mirror_aero(model, nid_offset, plane):
                                      nelements=nelements, melements=melements, comment='')
                 splines.append(spline_new)
                 spline_sets_to_duplicate.append(spline.setg)
-            else:
+            else:  # pragma: no cover
                 model.log.error('skipping (only support SPLINE1):\n%s' % spline.rstrip())
 
         #print("spline_sets_to_duplicate =", spline_sets_to_duplicate)
@@ -453,7 +557,7 @@ def _mirror_aero(model, nid_offset, plane):
                 is_skin = set_card.is_skin
                 set_card = SET1(sid, ids, is_skin=is_skin, comment='')
                 sets_to_add.append(set_card)
-            else:
+            else:  # pragma: no cover
                 model.log.error('skipping (only support SET1):\n%s' % set_card.rstrip())
 
         for spline in splines:
@@ -530,7 +634,7 @@ def make_symmetric_model(bdf_filename, plane='xz', zero_tol=1e-12, log=None, deb
             if p1[iy] <= zero and p2[iy] <= zero:
                 #print('p1=%s p4=%s' % (p1, p4))
                 caero_ids_to_remove.append(caero_id)
-        else:
+        else:  # pragma: no cover
             raise NotImplementedError(caero)
 
     for caero_id in caero_ids_to_remove:

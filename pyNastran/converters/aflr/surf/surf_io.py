@@ -26,6 +26,7 @@ class SurfIO(object):
         return data
 
     def load_surf_geometry(self, surf_filename, name=None, plot=True):
+        model_name = name
         #skip_reading = self.remove_old_openfoam_geometry(openfoam_filename)
         #if skip_reading:
         #    return
@@ -107,13 +108,10 @@ class SurfIO(object):
         self.gui.nelements = nelements
         grid.SetPoints(points)
         grid.Modified()
-        if hasattr(grid, 'Update'):
-            grid.Update()
-        #self.log_info("updated grid")
 
         # loadSurfResults - regions/loads
-        self.gui.scalarBar.VisibilityOn()
-        self.gui.scalarBar.Modified()
+        self.gui.scalar_bar_actor.VisibilityOn()
+        self.gui.scalar_bar_actor.Modified()
 
         self.gui.isubcase_name_map = {1: ['AFLR Surface', '']}
         cases = OrderedDict()
@@ -124,7 +122,7 @@ class SurfIO(object):
         self.gui.node_ids = node_ids
         self.gui.element_ids = element_ids
         if plot:
-            self.gui._finish_results_io2(form, cases)
+            self.gui._finish_results_io2(model_name, form, cases)
 
     def clear_surf(self):
         pass

@@ -52,7 +52,7 @@ if PY2:
 def read_op2(op2_filename=None, combine=True, subcases=None,
              exclude_results=None, include_results=None,
              log=None, debug=True, debug_file=None, build_dataframe=None,
-             skip_undefined_matrices=True, mode='msc', encoding=None):
+             skip_undefined_matrices=True, mode=None, encoding=None):
     """
     Creates the OP2 object without calling the OP2 class.
 
@@ -78,7 +78,7 @@ def read_op2(op2_filename=None, combine=True, subcases=None,
     log : Log()
         a logging object to write debug messages to
         (.. seealso:: import logging)
-    mode : str; default='msc'
+    mode : str; default=None -> 'msc'
         the version of the Nastran you're using
         {nx, msc, optistruct}
     debug_file : str; default=None (No debug)
@@ -119,10 +119,13 @@ def read_op2(op2_filename=None, combine=True, subcases=None,
 
 #class OP2(OP2_Scalar, OP2Writer):
 class OP2(OP2_Scalar):
+    _properties = ['is_real', 'is_complex', 'is_random',
+                   '_sort_method', 'is_sort1', 'is_sort2',
+                   'matrix_tables', 'table_name_str']
 
     def __init__(self,
                  debug=True, log=None,
-                 debug_file=None, mode='msc'):
+                 debug_file=None, mode=None):
         """
         Initializes the OP2 object
 
@@ -135,12 +138,14 @@ class OP2(OP2_Scalar):
          (.. seealso:: import logging)
         debug_file : str; default=None (No debug)
             sets the filename that will be written to
-        mode : str; default='msc'
+        mode : str; default=None -> 'msc'
             {msc, nx}
 
         """
         self.encoding = None
-        self.set_mode(mode)
+        self.mode = mode
+        if mode is not None:
+            self.set_mode(mode)
         make_geom = False
         assert make_geom is False, make_geom
         OP2_Scalar.__init__(self, debug=debug, log=log, debug_file=debug_file)
@@ -339,6 +344,9 @@ class OP2(OP2_Scalar):
             self.log.warning('type(a)=%s type(b)=%s' % (aname, bname))
             return False
 
+        if aname == 'PARAM': # TODO: update this
+            return True
+
         # does this ever hit?
         if not any(word in aname for word in ['Array', 'Eigenvalues']):
             msg = '%s is not an Array ... assume equal' % aname
@@ -362,8 +370,12 @@ class OP2(OP2_Scalar):
             self.set_as_msc()
         elif mode.lower() == 'nx':
             self.set_as_nx()
+        elif mode.lower() == 'radioss':
+            self.set_as_radioss()
+        elif mode.lower() == 'optistruct':
+            self.set_as_optistruct()
         else:
-            raise RuntimeError("mode=%r and must be 'msc' or 'nx'")
+            raise RuntimeError("mode=%r and must be in [msc, nx, radioss, optistruct]")
 
     def include_exclude_results(self, exclude_results=None, include_results=None):
         """
@@ -400,6 +412,8 @@ class OP2(OP2_Scalar):
         state = self.__dict__.copy()
         # Remove the unpicklable entries.
         del state['log']
+        if hasattr(self._results, 'log'):
+            del state['_results'].log
         #if hasattr(self, '_card_parser_b'):
             #del state['_card_parser_b']
         #if hasattr(self, '_card_parser_prepare'):
@@ -559,6 +573,7 @@ class OP2(OP2_Scalar):
             the unicode encoding (default=None; system default)
 
         """
+        mode = self.mode
         if build_dataframe is None:
             build_dataframe = False
             if ipython_info():
@@ -579,10 +594,11 @@ class OP2(OP2_Scalar):
         load_as_h5 = False
         if hasattr(self, 'load_as_h5'):
             load_as_h5 = self.load_as_h5
+
         try:
             # get GUI object names, build objects, but don't read data
             OP2_Scalar.read_op2(self, op2_filename=op2_filename,
-                                load_as_h5=load_as_h5)
+                                load_as_h5=load_as_h5, mode=mode)
 
             # TODO: stuff to figure out objects
             # TODO: stuff to show gui of table names
@@ -591,7 +607,7 @@ class OP2(OP2_Scalar):
             self._close_op2 = True
             self.log.debug('-------- reading op2 with read_mode=2 (array filling) --------')
             _create_hdf5_info(self.op2_reader.h5_file, self)
-            OP2_Scalar.read_op2(self, op2_filename=self.op2_filename)
+            OP2_Scalar.read_op2(self, op2_filename=self.op2_filename, mode=mode)
         except FileNotFoundError:
             raise
         except:
@@ -632,6 +648,8 @@ class OP2(OP2_Scalar):
         """internal method"""
         result_types = self.get_table_types()
         for result_type in result_types:
+            if result_type in ['params']:
+                continue
             result = self.get_result(result_type)
             for obj in result.values():
                 if hasattr(obj, 'finalize'):
@@ -669,6 +687,10 @@ class OP2(OP2_Scalar):
                     #continue
 
         for result_type in result_types:
+            if result_type == 'params':
+                #self.log.debug('skipping %s' % result_type)
+                continue
+
             result = self.get_result(result_type)
             for obj in result.values():
                 class_name = obj.__class__.__name__
@@ -705,7 +727,21 @@ class OP2(OP2_Scalar):
                     raise
 
     def load_hdf5(self, hdf5_filename, combine=True):
-        """loads an h5 file into an OP2 object"""
+        """Loads an h5 file into an OP2 object"""
+        self.deprecated('load_hdf5', 'load_hdf5_filename', '1.2')
+        return self.load_hdf5_filename(hdf5_filename, combine=True)
+
+    def load_hdf5_filename(self, hdf5_filename, combine=True):
+        """
+        Loads an h5 file into an OP2 object
+
+        Parameters
+        ----------
+        hdf5_filename : str
+            the path to the an hdf5 file
+        combine : bool; default=True
+            runs the combine routine
+        """
         check_path(hdf5_filename, 'hdf5_filename')
         from pyNastran.op2.op2_interface.hdf5_interface import load_op2_from_hdf5_file
         import h5py
@@ -717,17 +753,59 @@ class OP2(OP2_Scalar):
             load_op2_from_hdf5_file(self, h5_file, self.log, debug=debug)
         self.combine_results(combine=combine)
 
+    def load_hdf5_file(self, h5_file, combine=True):
+        """
+        Loads an h5 file object into an OP2 object
+
+        Parameters
+        ----------
+        h5_file : H5File()
+            an h5py file object
+        combine : bool; default=True
+            runs the combine routine
+
+        """
+        from pyNastran.op2.op2_interface.hdf5_interface import load_op2_from_hdf5_file
+        #self.op2_filename = hdf5_filename
+
+        #self.log.info('hdf5_op2_filename = %r' % hdf5_filename)
+        debug = False
+        load_op2_from_hdf5_file(self, h5_file, self.log, debug=debug)
+        self.combine_results(combine=combine)
+
     def export_to_hdf5(self, hdf5_filename):
+        """Converts the OP2 objects into hdf5 object"""
+        self.deprecated('export_to_hdf5', 'export_to_hdf5_filename', '1.2')
+        return self.export_to_hdf5_filename(hdf5_filename)
+
+    def export_to_hdf5_filename(self, hdf5_filename):
         """
         Converts the OP2 objects into hdf5 object
 
         TODO: doesn't support:
-          - matrices
+          - BucklingEigenvalues
+
+        """
+        from pyNastran.op2.op2_interface.hdf5_interface import export_op2_to_hdf5_filename
+        export_op2_to_hdf5_filename(hdf5_filename, self)
+
+    def export_to_hdf5_file(self, hdf5_file, exporter=None):
+        """
+        Converts the OP2 objects into hdf5 object
+
+        Parameters
+        ----------
+        hdf5_file : H5File()
+            an h5py object
+        exporter : HDF5Exporter; default=None
+            unused
+
+        TODO: doesn't support:
           - BucklingEigenvalues
 
         """
         from pyNastran.op2.op2_interface.hdf5_interface import export_op2_to_hdf5_file
-        export_op2_to_hdf5_file(hdf5_filename, self)
+        export_op2_to_hdf5_file(hdf5_file, self)
 
     def combine_results(self, combine=True):
         """
@@ -874,7 +952,7 @@ class OP2(OP2_Scalar):
 
         subcase_key2 = {}
         for result_type in result_types:
-            if result_type == 'eigenvalues':
+            if result_type in ['eigenvalues', 'params']:
                 continue
             result = self.get_result(result_type)
             case_keys = list(result.keys())
@@ -919,8 +997,8 @@ class OP2(OP2_Scalar):
                 continue
             for key in result_type_dict:
                 if isinstance(key, string_types):
-                    if table_type not in ['eigenvalues']:
-                        print(table_type)
+                    if table_type not in ['eigenvalues', 'params']:
+                        self.log.warning('table_type = %s' % table_type)
                     continue
                 if key not in keys:
                     keys.append(key)
@@ -1093,6 +1171,9 @@ class OP2(OP2_Scalar):
                 continue
             #print('-----------')
             for subcase, result in disp_like_dict.items():
+                if result.table_name in ['BOUGV1', 'BOPHIG', 'TOUGV1']:
+                    continue
+                self.log.debug("transforming %s" % result.table_name)
                 transform_displacement_to_global(subcase, result, icd_transform, coords, xyz_cid0,
                                                  self.log, debug=debug)
 

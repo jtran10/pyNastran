@@ -20,6 +20,9 @@ For example, with cross referencing...
   3
 
   >>> node.cid
+  3
+
+  >>> node.cid_ref
   CORD2S, 3, 1, 0., 0., 0., 0., 0., 1.,
           1., 0., 0.
   # get the position in the global frame
@@ -27,7 +30,7 @@ For example, with cross referencing...
   [4., 5., 6.]
 
   # get the position with respect to another frame
-  >>> node.PositionWRT(model, cid=2)
+  >>> node.get_position_wrt(model, cid=2)
   [4., 5., 6.]
 
 
@@ -52,8 +55,11 @@ Without cross referencing...
   >>> node.cid
   3
 
+  >>> node.cid_ref
+  None
+
   # get the position in the global frame
-  >>> node.Position()
+  >>> node.get_position()
   Error!
 
 Cross-referencing allows you to easily jump across cards and also helps
@@ -68,7 +74,7 @@ import traceback
 from typing import List, Dict, Any
 from six import iteritems, itervalues
 
-from numpy import zeros, argsort, arange, array_equal
+from numpy import zeros, argsort, arange, array_equal, array
 from pyNastran.bdf.bdf_interface.attributes import BDFAttributes
 
 class XrefMesh(BDFAttributes):
@@ -95,7 +101,7 @@ class XrefMesh(BDFAttributes):
                         xref=True,
                         xref_nodes=True,
                         xref_elements=True,
-                        xref_nodes_with_elements=True,
+                        xref_nodes_with_elements=False,
                         xref_properties=True,
                         xref_masses=True,
                         xref_materials=True,
@@ -103,8 +109,9 @@ class XrefMesh(BDFAttributes):
                         xref_constraints=True,
                         xref_aero=True,
                         xref_sets=True,
-                        xref_optimization=True):
-        # type: (bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool) -> None
+                        xref_optimization=True,
+                        word=''):
+        # type: (bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, bool, str) -> None
         """
         Links up all the cards to the cards they reference
 
@@ -130,6 +137,8 @@ class XrefMesh(BDFAttributes):
             set cross referencing of CAERO/SPLINEs
         xref_sets : bool; default=True
             set cross referencing of SETx
+        word : str; default=''
+            model flag
 
         To only cross-reference nodes:
 
@@ -146,7 +155,7 @@ class XrefMesh(BDFAttributes):
         """
         if not xref:
             return
-        self.log.debug("Cross Referencing...")
+        self.log.debug("Cross Referencing%s..." % word)
         if xref_nodes:
             self._cross_reference_nodes()
             self._cross_reference_coordinates()
@@ -172,8 +181,19 @@ class XrefMesh(BDFAttributes):
             self._cross_reference_optimization()
         if xref_nodes_with_elements:
             self._cross_reference_nodes_with_elements()
+        self._cross_reference_superelements()
         #self.case_control_deck.cross_reference(self)
         self.pop_xref_errors()
+
+        for super_id, superelement in sorted(self.superelement_models.items()):
+            superelement.cross_reference(
+                xref=xref, xref_nodes=xref_nodes, xref_elements=xref_elements,
+                xref_nodes_with_elements=xref_nodes_with_elements,
+                xref_properties=xref_properties, xref_masses=xref_masses,
+                xref_materials=xref_materials, xref_loads=xref_loads,
+                xref_constraints=xref_constraints, xref_aero=xref_aero,
+                xref_sets=xref_sets, xref_optimization=xref_optimization,
+                word=' (Superelement %i)' % super_id)
 
     def _cross_reference_constraints(self):
         # type: () -> None
@@ -551,6 +571,187 @@ class XrefMesh(BDFAttributes):
             dvmrel.cross_reference(self)
         for unused_key, dvprel in self.dvprels.items():
             dvprel.cross_reference(self)
+
+    def _cross_reference_superelements(self):
+        """cross references the superelement objects"""
+        for unused_seid, csuper in self.csuper.items():
+            csuper.cross_reference(self)
+        for unused_seid, csupext in self.csupext.items():
+            csupext.cross_reference(self)
+
+        for unused_seid, sebulk in self.sebulk.items():
+            sebulk.cross_reference(self)
+        for unused_seid, sebndry in self.sebndry.items():
+            sebndry.cross_reference(self)
+        for unused_seid, seconct in self.seconct.items():
+            seconct.cross_reference(self)
+        for unused_seid, seelt in self.seelt.items():
+            seelt.cross_reference(self)
+        for unused_seid, seexcld in self.seexcld.items():
+            seexcld.cross_reference(self)
+        for unused_seid, selabel in self.selabel.items():
+            selabel.cross_reference(self)
+        for unused_seid, seloc in self.seloc.items():
+            seloc.cross_reference(self)
+        for unused_seid, seload in self.seload.items():
+            seload.cross_reference(self)
+        for unused_seid, sempln in self.sempln.items():
+            sempln.cross_reference(self)
+        for unused_seid, setree in self.setree.items():
+            setree.cross_reference(self)
+
+        #'senqset',
+        #'se_sets', 'se_usets',
+
+    def _safe_cross_reference_superelements(self, create_superelement_geometry=False):
+        xref_errors = {}
+        seloc_missing = []
+        for seid, seloc in self.seloc.items():
+            if seid in self.superelement_models:
+                superelement = self.superelement_models[seid]
+                seloc.safe_cross_reference(self, xref_errors)
+                #seloc.transform(self)
+            else:
+                seloc_missing.append(seid)
+
+        try:
+            for unused_seid, sempln in sorted(self.sempln.items()):
+                sempln.safe_cross_reference(self, xref_errors)
+            for unused_seid, csuper in self.csuper.items():
+                csuper.safe_cross_reference(self, xref_errors)
+            for unused_seid, csupext in self.csupext.items():
+                csupext.safe_cross_reference(self, xref_errors)
+
+            if self.sebulk and create_superelement_geometry:
+                #print('sebulk...')
+                import os
+                # we have to create the superelement in order to transform it...
+                for seid, sebulk in self.sebulk.items():
+                    super_filename = 'super_%i.bdf' % seid
+                    if os.path.exists(super_filename):
+                        os.remove(super_filename)
+                    #print(sebulk)
+                    rseid = sebulk.rseid
+                    sebulk.safe_cross_reference(self, xref_errors)
+                    mirror_model = self._create_superelement_from_sebulk(sebulk, seid, rseid)
+                    if mirror_model is None:
+                        continue
+                    self.log.debug('made superelement %i' % seid)
+                    self.superelement_models[seid] = mirror_model
+                    mirror_model.write_bdf(super_filename)
+            for unused_seid, sebndry in self.sebndry.items():
+                sebndry.safe_cross_reference(self, xref_errors)
+            for unused_seid, seconct in self.seconct.items():
+                seconct.safe_cross_reference(self, xref_errors)
+            for unused_seid, seelt in self.seelt.items():
+                seelt.safe_cross_reference(self, xref_errors)
+            for unused_seid, seexcld in self.seexcld.items():
+                seexcld.safe_cross_reference(self, xref_errors)
+            for unused_seid, selabel in self.selabel.items():
+                selabel.safe_cross_reference(self, xref_errors)
+            for seid in seloc_missing:
+                seloc = self.seloc[seid]
+                seloc.safe_cross_reference(self, xref_errors)
+            for unused_seid, seload in self.seload.items():
+                seload.safe_cross_reference(self, xref_errors)
+            for unused_seid, setree in self.setree.items():
+                setree.safe_cross_reference(self, xref_errors)
+        except KeyError:
+            if not create_superelement_geometry:
+                raise
+            self.write_bdf('superelement_xref.bdf')
+            self.log.error('check superelement_xref.bdf')
+            raise
+
+    def _create_superelement_from_sebulk(self, sebulk, seid, rseid):
+        """helper for sebulk"""
+        #C:\MSC.Software\MSC.Nastran\msc20051\nast\tpl\see103q4.dat
+        ref_model = self.superelement_models[rseid]
+        if sebulk.superelement_type == 'MIRROR':
+            from pyNastran.bdf.mesh_utils.mirror_mesh import bdf_mirror_plane
+            #print('creating superelement %s from %s' % (seid, rseid))
+            sempln = self.sempln[seid]
+            plane = array([node.get_position() for node in sempln.nodes_ref])
+
+            # What about seloc on the primary and sempln+seloc on the secondary?
+            #  - move the primary
+            #  - then apply the mirror to make the secondary
+            #  - then move the secondary
+            #
+            # Or what about sempln+seloc on the tertiary?
+            #
+            # this is fine for the secondary
+            if rseid in self.seloc:
+                # I think this is wrong...
+                seloc = self.seloc[rseid]
+                plane = seloc.transform(self, plane)
+
+            ref_model, mirror_model, unused_nid_offset, unused_eid_offset = bdf_mirror_plane(
+                ref_model, plane, mirror_model=None, log=None, debug=True, use_nid_offset=False)
+            mirror_model.properties = ref_model.properties
+            mirror_model.materials = ref_model.materials
+            new_model = mirror_model
+        elif sebulk.Type in ['MANUAL', 'PRIMARY', 'COLLCTR', 'EXTERNAL']:
+            self.log.info('skipping:\n%s' % sebulk)
+            new_model = None
+        else:  # pragma: no cover
+            raise NotImplementedError(sebulk)
+        return new_model
+
+    def _uncross_reference_superelements(self):
+        """cross references the superelement objects"""
+        for unused_seid, csuper in self.csuper.items():
+            csuper.uncross_reference()
+        for unused_seid, csupext in self.csupext.items():
+            csupext.uncross_reference()
+
+        for unused_seid, sebulk in self.sebulk.items():
+            sebulk.uncross_reference()
+        for unused_seid, sebndry in self.sebndry.items():
+            sebndry.uncross_reference()
+        for unused_seid, seconct in self.seconct.items():
+            seconct.uncross_reference()
+        for unused_seid, seelt in self.seelt.items():
+            seelt.uncross_reference()
+        for unused_seid, seexcld in self.seexcld.items():
+            seexcld.uncross_reference()
+        for unused_seid, selabel in self.selabel.items():
+            selabel.uncross_reference()
+        for unused_seid, seloc in self.seloc.items():
+            seloc.uncross_reference()
+        for unused_seid, seload in self.seload.items():
+            seload.uncross_reference()
+        for unused_seid, sempln in self.sempln.items():
+            sempln.uncross_reference()
+        for unused_seid, setree in self.setree.items():
+            setree.uncross_reference()
+
+    def get_point_grids(self, nodes, msg=''):
+        """gets GRID, POINT cards"""
+        nodes_ref = []
+        missing_nids = []
+        for nid in nodes:
+            if nid in self.nodes:
+                node = self.nodes[nid]
+            elif nid in self.points:
+                node = self.points[nid]
+            else:
+                missing_nids.append(nid)
+                continue
+            nodes_ref.append(node)
+        if missing_nids:
+            raise KeyError('missing GRID/POINT nids=%s%s' % (missing_nids, msg))
+        return nodes_ref
+
+    def superelement_nodes(self, seid, nodes, msg=''):
+        if seid == 0:
+            return self.Nodes(nodes, msg=msg)
+        try:
+            superelement = self.superelement_models[seid]
+        except KeyError:
+            keys = list(self.superelement_models.keys())
+            raise KeyError('cant find superelement=%i%s; seids=%s' % (seid, msg, keys))
+        return superelement.Nodes(nodes, msg=msg)
 
     def geom_check(self, geom_check, xref):  # pragma: no cover
         # type: (bool, bool) -> None

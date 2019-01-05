@@ -58,6 +58,7 @@ from pyNastran import is_release
 from pyNastran.f06.errors import FatalError
 from pyNastran.op2.tables.grid_point_weight import GridPointWeight
 from pyNastran.op2.op2_interface.op2_reader import OP2Reader
+from pyNastran.bdf.cards.params import PARAM
 
 #============================
 
@@ -223,11 +224,15 @@ GEOM_TABLES = [
 ]
 
 NX_RESULT_TABLES = [
+    # GEOM table
+    b'ICASE',
+
+    #-----------------------
     # OESVM1  - OES Table of           element stresses
     # OESVM1C - OES Table of composite element stresses
     #           for frequency response analysis that includes von Mises stress
     #           output in SORT1 format.
-    b'OESVM1', b'OSTRVM1',
+    b'OESVM1', b'OESVM2', b'OSTRVM1', b'OSTRVM2',
     b'OESVM1C', b'OSTRVM1C',
 
     b'OESPSD2C', b'OSTPSD2C',
@@ -297,7 +302,7 @@ MSC_RESULT_TABLES = [b'ASSIG', b'ASEPS'] + [
     # spc forces - gset - sort 1
     b'OQG1', b'OQGV1',
     # mpc forces - gset - sort 1
-    b'OQMG1',
+    b'OQMG1', b'OQMG2',
     # ??? forces
     b'OQP1',
 
@@ -760,14 +765,16 @@ class OP2_Scalar(LAMA, ONR, OGPF,
 
     def _get_table_mapper(self):
         """gets the dictionary of function3 / function4"""
-        table_mapper = {
 
+        # MSC table mapper
+        table_mapper = {
             # per NX
             b'OESVM1' : [self._read_oes1_3, self._read_oes1_4],    # isat_random
             b'OESVM1C' : [self._read_oes1_3, self._read_oes1_4],   # isat_random
             b'OSTRVM1' : [self._read_oes1_3, self._read_ostr1_4],   # isat_random
             b'OSTRVM1C' : [self._read_oes1_3, self._read_ostr1_4],  # isat_random
 
+            b'OESVM2' : [self._read_oes2_3, self._read_oes2_4],    # big random
             b'OES2C' : [self._read_oes2_3, self._read_oes2_4],
             b'OSTR2' : [self._read_oes2_3, self._read_ostr2_4], # TODO: disable
             b'OSTR2C' : [self._read_oes2_3, self._read_ostr2_4],
@@ -880,10 +887,10 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             b'OQGATO2' : [self._read_oqg2_3, self._read_oqg_4],
             b'OQGCRM2' : [self._read_oqg2_3, self._read_oqg_4],
             b'OQGPSD2' : [self._read_oqg2_3, self._read_oqg_4],
-            #b'OQGRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
-            #b'OQGNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
-            b'OQGRMS2' : [self._read_oqg2_3, self._read_oqg_4],  # buggy on isat random
-            b'OQGNO2'  : [self._read_oqg2_3, self._read_oqg_4],  # buggy on isat random
+            b'OQGRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
+            b'OQGNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
+            #b'OQGRMS2' : [self._read_oqg2_3, self._read_oqg_4],  # buggy on isat random
+            #b'OQGNO2'  : [self._read_oqg2_3, self._read_oqg_4],  # buggy on isat random
 
             #=======================
             # MPC Forces
@@ -897,7 +904,7 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             b'OQMRMS1' : [self._read_oqg1_3, self._read_oqg_mpc_rms],
             b'OQMNO1'  : [self._read_oqg1_3, self._read_oqg_mpc_no],
 
-            #b'OQMG2'   : [self._read_oqg1_3, self._read_oqg_mpc_forces],
+            b'OQMG2'   : [self._read_oqg2_3, self._read_oqg_mpc_forces], # big random
             b'OQMATO2' : [self._read_oqg2_3, self._read_oqg_mpc_ato],
             b'OQMCRM2' : [self._read_oqg2_3, self._read_oqg_mpc_crm],
             b'OQMPSD2' : [self._read_oqg2_3, self._read_oqg_mpc_psd],
@@ -991,10 +998,10 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             b'OSTRATO2' : [self._read_oes2_3, self._read_ostr2_4],
             b'OSTRCRM2' : [self._read_oes2_3, self._read_ostr2_4],
             b'OSTRPSD2' : [self._read_oes2_3, self._read_ostr2_4],
-            #b'OSTRRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
-            #b'OSTRNO2' : [self._table_passer, self._table_passer],  # buggy on isat random
-            b'OSTRRMS2' : [self._read_oes2_3, self._read_ostr2_4],  # buggy on isat random
-            b'OSTRNO2' : [self._read_oes2_3, self._read_ostr2_4],  # buggy on isat random
+            b'OSTRRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
+            b'OSTRNO2' : [self._table_passer, self._table_passer],  # buggy on isat random
+            #b'OSTRRMS2' : [self._read_oes2_3, self._read_ostr2_4],  # buggy on isat random
+            #b'OSTRNO2' : [self._read_oes2_3, self._read_ostr2_4],  # buggy on isat random
 
             b'OSTRMS1C' : [self._read_oes1_3, self._read_ostr1_4], # isat_random
             b'OSTNO1C' : [self._read_oes1_3, self._read_ostr1_4],  # isat_random
@@ -1031,10 +1038,10 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             b'OUGATO2' : [self._read_oug2_3, self._read_oug_ato],
             b'OUGCRM2' : [self._read_oug2_3, self._read_oug_crm],
             b'OUGPSD2' : [self._read_oug2_3, self._read_oug_psd],
-            #b'OUGRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
-            #b'OUGNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
-            b'OUGRMS2' : [self._read_oug2_3, self._read_oug_rms],  # buggy on isat random
-            b'OUGNO2'  : [self._read_oug2_3, self._read_oug_no],  # buggy on isat random
+            b'OUGRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
+            b'OUGNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
+            #b'OUGRMS2' : [self._read_oug2_3, self._read_oug_rms],  # buggy on isat random
+            #b'OUGNO2'  : [self._read_oug2_3, self._read_oug_no],  # buggy on isat random
 
             #=======================
             # extreme values of the respective table
@@ -1126,7 +1133,7 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             b'BGPDTOLD' : [self._table_passer, self._table_passer],
 
             b'PVT' : [self._table_passer, self._table_passer], # PVT - Parameter Variable Table
-            b'PVT0' : [self._table_passer, self._table_passer],  # user parameter value table
+            b'PVT0' : [self._read_pvto_3, self._read_pvto_4],  # user parameter value table
             b'DESTAB' : [self._table_passer, self._table_passer],
             b'TOLD' : [self._table_passer, self._table_passer],
             b'CASECC' : [self._table_passer, self._table_passer],  # case control deck
@@ -1212,10 +1219,10 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             b'OESATO2' : [self._read_oes2_3, self._read_oes2_4],
             b'OESCRM2' : [self._read_oes2_3, self._read_oes2_4],
             b'OESPSD2' : [self._read_oes2_3, self._read_oes2_4],
-            b'OESRMS2' : [self._read_oes1_3, self._read_oes1_4],  # buggy on isat random
-            b'OESNO2'  : [self._read_oes1_3, self._read_oes1_4],  # buggy on isat random
-            #b'OESRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
-            #b'OESNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
+            #b'OESRMS2' : [self._read_oes1_3, self._read_oes1_4],  # buggy on isat random
+            #b'OESNO2'  : [self._read_oes1_3, self._read_oes1_4],  # buggy on isat random
+            b'OESRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
+            b'OESNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
 
             # force
             b'OEFATO1' : [self._read_oef1_3, self._read_oef1_4],
@@ -1228,10 +1235,120 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             b'OEFCRM2' : [self._read_oef2_3, self._read_oef2_4],
             b'OEFPSD2' : [self._read_oef2_3, self._read_oef2_4],
             b'OEFRMS2' : [self._read_oef2_3, self._read_oef2_4],
-            #b'OEFNO2'  : [self._read_oef2_3, self._read_oef2_4],
-            b'OEFNO2' : [self._table_passer, self._table_passer], # buggy on isat_random_steve2.op2
         }
+        if self.is_nx and 0:
+            table_mapper2 = {
+                #b'OUGRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
+                #b'OUGNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
+                b'OUGRMS2' : [self._read_oug2_3, self._read_oug_rms],  # buggy on isat random
+                b'OUGNO2'  : [self._read_oug2_3, self._read_oug_no],  # buggy on isat random
+
+                #b'OQMRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
+                #b'OQMNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
+                b'OQMRMS2' : [self._read_oqg2_3, self._read_oqg_mpc_rms],  # buggy on isat random
+                b'OQMNO2'  : [self._read_oqg2_3, self._read_oqg_mpc_no],  # buggy on isat random
+
+                #b'OSTRRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
+                #b'OSTRNO2' : [self._table_passer, self._table_passer],  # buggy on isat random
+                b'OSTRRMS2' : [self._read_oes2_3, self._read_ostr2_4],  # buggy on isat random
+                b'OSTRNO2' : [self._read_oes2_3, self._read_ostr2_4],  # buggy on isat random
+
+                b'OESRMS2' : [self._read_oes1_3, self._read_oes1_4],  # buggy on isat random
+                b'OESNO2'  : [self._read_oes1_3, self._read_oes1_4],  # buggy on isat random
+                #b'OESRMS2' : [self._table_passer, self._table_passer],  # buggy on isat random
+                #b'OESNO2'  : [self._table_passer, self._table_passer],  # buggy on isat random
+
+                b'OEFNO2'  : [self._read_oef2_3, self._read_oef2_4],
+                #b'OEFNO2' : [self._table_passer, self._table_passer], # buggy on isat_random_steve2.op2
+            }
+            for key, value in table_mapper2.items():
+                table_mapper[key] = value
+            #table_mapper.update(table_mapper2)
         return table_mapper
+
+    def _read_pvto_3(self, data, ndata):
+        """unused"""
+        raise RuntimeError(self.read_mode)
+
+    def _read_pvto_4(self, data, ndata):
+        """reads PARAM cards"""
+        if self.read_mode == 1:
+            return ndata
+
+        iloc = self.f.tell()
+        try:
+            ndata2 = self._read_pvto_4_helper(data, ndata)
+        except Exception as e:
+            self.log.error(str(e))
+            raise  # only for testing
+            self.f.seek(iloc)
+            ndata2 = ndata
+        return ndata2
+
+    def _read_pvto_4_helper(self, data, ndata):
+        """reads PARAM cards"""
+        nvalues = ndata // 4
+        assert ndata % 4 == 0, ndata
+
+        from struct import Struct
+        structs8 = Struct(b'8s')
+        struct2s8 = Struct(b'4s8s')
+        struct2i = Struct(b'ii')
+        struct2f = Struct(b'ff')
+        i = 0
+
+        # TODO: these are weird...
+        #   RPOSTS1, MAXRATI, RESCOMP, PDRMSG
+        int_words_1 = [
+            b'POST', b'OPPHIPA', b'OPPHIPB', b'GRDPNT', b'RPOSTS1', b'BAILOUT',
+            b'COUPMASS', b'CURV', b'INREL', b'MAXRATI', b'OG',
+            b'S1AM', b'S1M', b'DDRMM', b'MAXIT', b'PLTMSG', b'LGDISP', b'NLDISP',
+            b'OUNIT2M', b'RESCOMP', b'PDRMSG', b'LMODES', b'USETPRT']
+        float_words_1 = [
+            b'K6ROT', b'WTMASS', b'SNORM', b'PATVER', b'MAXRATIO', b'EPSHT',
+            b'SIGMA', b'TABS']
+        str_words_1 = [
+            b'POSTEXT', b'PRTMAXIM', b'AUTOSPC', b'OGEOM', b'PRGPST',
+            b'RESVEC', b'RESVINER', b'ALTRED', b'OGPS', b'OIBULK', b'OMACHPR',
+            b'UNITSYS', b'F56', b'OUGCORD', b'OGEM', b'EXTSEOUT',
+
+            # TODO: remove these as they're in the matrix test and are user
+            #       defined PARAMs
+            # TODO: add an option for custom PARAMs
+            b'MREDUC', b'OUTDRM', b'OUTFORM', b'REDMETH', ]
+        #print('---------------------------')
+        while i < nvalues:
+            #print('*i=%s nvalues=%s' % (i, nvalues))
+            word = data[i*4:(i+2)*4].rstrip()
+            #print('word=%r' % word)
+            #word = s8.unpack(word)[0]#.decode(self._encoding)
+
+            if word in int_words_1:
+                slot = data[(i+2)*4:(i+4)*4]
+                value = struct2i.unpack(slot)[1]
+                i += 4
+                #print(word, value)
+            elif word in float_words_1:
+                slot = data[(i+2)*4:(i+4)*4]
+                value = struct2f.unpack(slot)[1]
+                #print(word, value)
+                i += 4
+            elif word in str_words_1:
+                #print('--------')
+                #self.show_data(data[i*4:])
+                i += 3
+                slot = data[i*4:(i+2)*4]
+                value = structs8.unpack(slot)[0].decode('latin1').rstrip()
+                #print(word, value.rstrip())
+                i += 2
+            else:
+                #self.show_data(data[i*4:])
+                self.show_data(data[i*4:(i+4)*4])
+                raise NotImplementedError('%r is not a supported PARAM' % word)
+
+            key = word.decode('latin1')
+            self.params[key] = PARAM(key, [value], comment='')
+        return nvalues
 
     def _not_available(self, data, ndata):
         """testing function"""
@@ -1289,7 +1406,7 @@ class OP2_Scalar(LAMA, ONR, OGPF,
         self.is_debug_file, self.binary_debug = create_binary_debug(
             self.op2_filename, self.debug_file, self.log)
 
-    def read_op2(self, op2_filename=None, combine=False, load_as_h5=None, h5_file=None):
+    def read_op2(self, op2_filename=None, combine=False, load_as_h5=False, h5_file=None, mode=None):
         """
         Starts the OP2 file reading
 
@@ -1302,9 +1419,12 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             False : objects are (isubcase, subtitle) based;
                     will be used for superelements regardless of the option
         load_as_h5 : default=None
-            None : don't setup the h5_file
-            True/False : loads the op2 as an h5 file to save memory
-                         stores the result.element/data attributes in h5 format
+            False : don't setup the h5_file
+            True : loads the op2 as an h5 file to save memory
+                   stores the result.element/data attributes in h5 format
+        h5_file : h5File; default=None
+            None : ???
+            h5File : ???
 
         +--------------+-----------------------+
         | op2_filename | Description           |
@@ -1344,7 +1464,7 @@ class OP2_Scalar(LAMA, ONR, OGPF,
 
         self._create_binary_debug()
         self._setup_op2()
-        self.op2_reader.read_nastran_version()
+        self.op2_reader.read_nastran_version(mode)
 
         #=================
         table_name = self.op2_reader._read_table_name(rewind=True, stop_on_failure=False)
@@ -1583,7 +1703,7 @@ class OP2_Scalar(LAMA, ONR, OGPF,
             if PY3:
                 if not isinstance(_key, bytes):
                     failed_keys.append(_key)
-            if self.is_nx:
+            if hasattr(self, 'is_nx') and self.is_nx:
                 NX_RESULT_TABLES.append(_key)
             else:
                 MSC_RESULT_TABLES.append(_key)

@@ -45,6 +45,12 @@ class PLSOLID(SolidProperty):
         1: 'pid', 2:'mid', 3:'str',
     }
 
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        return PLSOLID(pid, mid, stress_strain='GRID', ge=0., comment='')
+
     def __init__(self, pid, mid, stress_strain='GRID', ge=0., comment=''):
         """
         Creates a PLSOLID card
@@ -166,6 +172,18 @@ class PCOMPS(SolidProperty):
         #1: 'pid', 2:'mid', 3:'cordm', 4:'integ', 5:'stress',
         #6:'isop', 7:'fctn',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        global_ply_ids = [1, 2]
+        mids = [10, 20]
+        thicknesses = [0.1, 0.2]
+        thetas = [30., 60.]
+        return PCOMPS(pid, global_ply_ids, mids, thicknesses, thetas,
+                      cordm=0, psdir=13, sb=None, nb=None, tref=0.0,
+                      ge=0.0, failure_theories=None,
+                      interlaminar_failure_theories=None, souts=None, comment='')
 
     def __init__(self, pid, global_ply_ids, mids, thicknesses, thetas,
                  cordm=0, psdir=13, sb=None, nb=None, tref=0.0, ge=0.0,
@@ -336,6 +354,13 @@ class PSOLID(SolidProperty):
         6:'isop', 7:'fctn',
     }
 
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        return PSOLID(pid, mid, cordm=0, integ=None, stress=None,
+                      isop=None, fctn='SMECH', comment='')
+
     def __init__(self, pid, mid, cordm=0, integ=None, stress=None, isop=None,
                  fctn='SMECH', comment=''):
         """
@@ -383,21 +408,107 @@ class PSOLID(SolidProperty):
         # 1-GAUSS
         # 2-TWO
         # 3-THREE
+        if integ == 0:
+            integ = 'BUBBLE'
+        elif integ == 1:
+            integ = 'GUASS'
+        elif integ == 2:
+            integ = 'TWO'
+        elif integ == 3:
+            integ = 'THREE'
+
         self.integ = integ
 
         # blank/GRID
         # 1-GAUSS
+        if stress == 0:
+            stress = 'GRID'
+        elif stress == 1:
+            stress = 'GUASS'
         self.stress = stress
 
         # note that None is supposed to vary depending on element type
         # 0-REDUCED
         # 1-FULL
+        if isop == 0:
+            isop = 'REDUCED'
+        elif isop == 1:
+            isop = 'FULL'
         self.isop = isop
 
         # PFLUID
         # SMECH
+        if fctn == 'SMEC':
+            fctn = 'SMECH'
+        elif fctn == 'PFLU':
+            fctn = 'PFLUID'
         self.fctn = fctn
         self.mid_ref = None
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, pids):
+        """exports the properties in a vectorized way"""
+        encoding = model._encoding
+        comments = []
+        mid = []
+        cordm = []
+        integ = []
+        stress = []
+        isop = []
+        fctn = []
+        assert len(pids) > 0, pids
+        for pid in pids:
+            prop = model.properties[pid]
+            #comments.append(prop.comment)
+            mid.append(prop.mid)
+            cordm.append(prop.cordm)
+            if prop.integ is None:
+                integ.append(b'')
+            elif prop.integ == 0:
+                integ.append(b'BUBBLE')
+            elif prop.integ == 1:
+                integ.append(b'GAUSS')
+            elif prop.integ == 2:
+                integ.append(b'TWO')
+            elif prop.integ == 3:
+                integ.append(b'THREE')
+            else:
+                #0, 'BUBBLE'
+                #1, 'GAUSS'
+                #2, 'TWO'
+                #3, 'THREE'
+                #REDUCED
+                #FULL
+                integ.append(prop.integ.encode(encoding))
+
+            if prop.stress is None:
+                stress.append(b'')
+            elif prop.stress == 1:
+                stress.append(b'GAUSS')
+            else:
+                # None/GRID, 1-GAUSS
+                stress.append(prop.stress.encode(encoding))
+
+            if prop.isop is None:
+                isop.append(b'')
+            elif prop.isop == 0:
+                isop.append(b'REDUCED')
+            elif prop.isop == 1:
+                isop.append(b'FULL')
+            else:
+                isop.append(prop.isop.encode(encoding))
+
+            # 'SMECH'
+            fctn.append(prop.fctn.encode(encoding))
+        #fctn = np.array(fctn, dtype='<8U')
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('pid', data=pids)
+        h5_file.create_dataset('mid', data=mid)
+        h5_file.create_dataset('cordm', data=cordm)
+        h5_file.create_dataset('integ', data=integ)
+        h5_file.create_dataset('stress', data=stress)
+        h5_file.create_dataset('isop', data=isop)
+        h5_file.create_dataset('fctn', data=fctn)
 
     @classmethod
     def add_card(cls, card, comment=''):
@@ -441,6 +552,32 @@ class PSOLID(SolidProperty):
         stress = data[4]
         isop = data[5]
         fctn = data[6].decode('latin1')
+
+        #integ : int; default=None
+        #None-varies depending on element type
+        #0, 'BUBBLE'
+        #1, 'GAUSS'
+        #2, 'TWO'
+        #3, 'THREE'
+        #REDUCED
+        #FULL
+
+        # stress : int, string, or blank
+        #    blank/GRID
+        #    1-GAUSS
+        if stress == 0:
+            stress = 'GRID'
+        elif stress == 1:
+            stress = 'GAUSS'
+        else:
+            raise NotImplementedError('stress=%s and must be [0, 1]' % stress)
+
+        if isop == 0:
+            isop = 'REDUCED'
+        elif isop == 1:
+            isop = 'FULL'
+        else:
+            raise NotImplementedError('isop=%s and must be [0, 1]' % isop)
 
         if fctn == 'SMEC':
             fctn = 'SMECH'

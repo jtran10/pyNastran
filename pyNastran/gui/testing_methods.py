@@ -103,7 +103,7 @@ class FakeGUIMethods(GuiCommon):
         #}
         self.main_grid_mappers = {'main' : GridMapper()}
         self.grid = vtk.vtkUnstructuredGrid()
-        #self.scalarBar = ScalarBar()
+        #self.scalar_bar_actor = ScalarBar()
         self.scalar_bar = ScalarBar()
         self.alt_geometry_actor = ScalarBar()
         self.alt_grids = {
@@ -141,7 +141,7 @@ class FakeGUIMethods(GuiCommon):
             self.label_actors[icase] = []
 
     @property
-    def scalarBar(self):
+    def scalar_bar_actor(self):
         return self.scalar_bar.scalar_bar
 
     @property
@@ -171,7 +171,7 @@ class FakeGUIMethods(GuiCommon):
     def update_menu_bar(self):
         pass
 
-    def _finish_results_io2(self, form, cases, reset_labels=True):
+    def _finish_results_io2(self, model_name, form, cases, reset_labels=True):
         """
         This is not quite the same as the main one.
         It's more or less just _set_results

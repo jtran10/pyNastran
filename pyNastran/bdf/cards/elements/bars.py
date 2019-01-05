@@ -154,7 +154,7 @@ class LineElement(Element):  # CBAR, CBEAM, CBEAM3, CBEND
         return [(node_ids[0], node_ids[1])]
 
 
-class BAROR(object):
+class BAROR(BaseCard):
     """
     +-------+---+-----+---+---+-------+-----+-------+------+
     |   1   | 2 |  3  | 4 | 5 |   6   |  7  |   8   |  9   |
@@ -165,7 +165,17 @@ class BAROR(object):
     +-------+---+-----+---+---+-------+-----+-------+------+
     """
     type = 'BAROR'
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        is_g0 = True
+        g0 = 1
+        x = None
+        return BAROR(pid, is_g0, g0, x, offt='GGG', comment='')
+
     def __init__(self, pid, is_g0, g0, x, offt='GGG', comment=''):
+        BaseCard.__init__(self)
         if comment:
             self.comment = comment
         self.n = 0
@@ -200,6 +210,19 @@ class BAROR(object):
         assert len(card) <= 9, 'len(BAROR card) = %i\ncard=%s' % (len(card), card)
         return BAROR(pid, is_g0, g0, x, offt=offt, comment=comment)
 
+    def raw_fields(self):
+        """
+        Gets the fields of the card in their full form
+        """
+        list_fields = ['BAROR', None, None] + self.x.tolist() + [self.offt]
+        return list_fields
+
+    def write_card(self, size=8, is_double=False):
+        card = self.repr_fields()
+        if size == 8:
+            return self.comment + print_card_8(card)
+        return self.comment + print_card_16(card)
+
 class CBARAO(BaseCard):
     type = 'CBARAO'
     """
@@ -221,6 +244,14 @@ class CBARAO(BaseCard):
     | CBARAO | 1065 |  FR   |  4   | 0.2 |  0.2   |     |    |    |
     +--------+------+-------+------+-----+--------+-----+----+----+
     """
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        scale = 'FR'
+        x = [0.5]
+        return CBARAO(eid, scale, x, comment='')
+
     def __init__(self, eid, scale, x, comment=''):
         """
         Creates a CBARAO card, which defines additional output locations
@@ -389,6 +420,55 @@ class CBAR(LineElement):
                     self.x[2] = value
                 else:
                     raise KeyError('Field %r=%r is an invalid %s entry.' % (n, value, self.type))
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, eids):
+        """exports the elements in a vectorized way"""
+        #comments = []
+        pids = []
+        nodes = []
+        x = []
+        g0 = []
+        offt = []
+        bit = []
+        pa = []
+        pb = []
+        wa = []
+        wb = []
+        nan = np.full(3, np.nan)
+        encoding = model._encoding
+        for eid in eids:
+            element = model.elements[eid]
+            #comments.append(element.comment)
+            pids.append(element.pid)
+            nodes.append(element.nodes)
+            if element.g0 is None:
+                x.append(element.x)
+                g0.append(-1)
+            else:
+                x.append(nan)
+                g0.append(element.g0)
+
+            offt.append(element.offt.encode(encoding))
+            pa.append(element.pa)
+            pb.append(element.pb)
+            wa.append(element.wa)
+            wb.append(element.wb)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('nodes', data=nodes)
+        h5_file.create_dataset('pid', data=pids)
+        #print('x =', x)
+        #print('g0 =', g0)
+        h5_file.create_dataset('x', data=x)
+        h5_file.create_dataset('g0', data=g0)
+        h5_file.create_dataset('offt', data=offt)
+
+        h5_file.create_dataset('pa', data=pa)
+        h5_file.create_dataset('pb', data=pb)
+
+        h5_file.create_dataset('wa', data=wa)
+        h5_file.create_dataset('wb', data=wb)
 
     def __init__(self, eid, pid, nids,
                  x, g0, offt='GGG',
@@ -1022,6 +1102,7 @@ class CBEND(LineElement):
     _field_map = {
         1: 'eid', 2:'pid', 3:'ga', 4:'gb', 8:'geom',
     }
+    _properties = ['node_ids']
 
     def _update_field_helper(self, n, value):
         if self.g0 is not None:
@@ -1038,6 +1119,16 @@ class CBEND(LineElement):
                 self.x[2] = value
             else:
                 raise KeyError('Field %r=%r is an invalid %s entry.' % (n, value, self.type))
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 1
+        nids = [1, 2]
+        g0 = [4]
+        x = None
+        geom = 1
+        return CBEND(eid, pid, nids, g0, x, geom, comment='')
 
     def __init__(self, eid, pid, nids, g0, x, geom, comment=''):
         """

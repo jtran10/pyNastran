@@ -14,6 +14,7 @@ import traceback
 import warnings
 from itertools import chain
 from typing import List, Tuple, Optional
+from six import StringIO
 import numpy as np
 #warnings.simplefilter('always')
 warnings.simplefilter('default')
@@ -160,7 +161,7 @@ def run_lots_of_files(filenames, folder='', debug=False, xref=True, check=True,
                     nerrors=0,
                     post=post, sum_load=sum_load, dev=dev,
                     crash_cards=crash_cards,
-                    run_extract_bodies=False, pickle_obj=pickle_obj)
+                    run_extract_bodies=False, pickle_obj=pickle_obj, hdf5=True)
                 del fem1
                 del fem2
             diff_cards += diff_cards
@@ -218,10 +219,12 @@ def memory_usage_psutil():
 def run_bdf(folder, bdf_filename, debug=False, xref=True, check=True, punch=False,
             mesh_form='separate', is_folder=False, print_stats=False,
             encoding=None, sum_load=True, size=8, is_double=False,
+            hdf5=False,
             stop=False, nastran='', post=-1, dynamic_vars=None,
             quiet=False, dumplines=False, dictsort=False, run_extract_bodies=False,
+            save_file_structure=False,
             nerrors=0, dev=False, crash_cards=None, safe_xref=False, pickle_obj=False,
-            stop_on_failure=True):
+            stop_on_failure=True, log=None):
     """
     Runs a single BDF
 
@@ -231,8 +234,10 @@ def run_bdf(folder, bdf_filename, debug=False, xref=True, check=True, punch=Fals
         the folder where the bdf_filename is
     bdf_filename : str
         the bdf file to analyze
-    debug : bool, optional
-        run with debug logging (default=False)
+    debug : bool / None, default=False
+        True : run with debug logging
+        False : run with info logging
+        None : run with warning logging
     xref : bool / str, optional
         True : cross reference the model
         False  : don't cross reference the model
@@ -302,13 +307,16 @@ def run_bdf(folder, bdf_filename, debug=False, xref=True, check=True, punch=Fals
         punch=punch, mesh_form=mesh_form,
         print_stats=print_stats, encoding=encoding,
         sum_load=sum_load, size=size, is_double=is_double,
-        stop=stop, nastran=nastran, post=post,
+        stop=stop, nastran=nastran, post=post, hdf5=hdf5,
         dynamic_vars=dynamic_vars,
         quiet=quiet, dumplines=dumplines, dictsort=dictsort,
         nerrors=nerrors, dev=dev, crash_cards=crash_cards,
         safe_xref=safe_xref,
-        run_extract_bodies=run_extract_bodies, pickle_obj=pickle_obj,
+        run_extract_bodies=run_extract_bodies,
+        save_file_structure=save_file_structure,
+        pickle_obj=pickle_obj,
         stop_on_failure=stop_on_failure,
+        log=log,
     )
     return fem1, fem2, diff_cards
 
@@ -317,16 +325,17 @@ def run_and_compare_fems(
         punch=False, mesh_form='combined',
         print_stats=False, encoding=None,
         sum_load=True, size=8, is_double=False,
-        stop=False, nastran='', post=-1, dynamic_vars=None,
+        save_file_structure=False,
+        stop=False, nastran='', post=-1, hdf5=False,
+        dynamic_vars=None,
         quiet=False, dumplines=False, dictsort=False,
         nerrors=0, dev=False, crash_cards=None,
         safe_xref=True, run_extract_bodies=False, pickle_obj=False,
-        stop_on_failure=True,
+        stop_on_failure=True, log=None,
     ):
     """runs two fem models and compares them"""
     assert os.path.exists(bdf_model), '%r doesnt exist' % bdf_model
-
-    fem1 = BDF(debug=debug, log=None)
+    fem1 = BDF(debug=debug, log=log)
     fem1.dumplines = dumplines
 
     fem1.set_error_storage(nparse_errors=nerrors, stop_on_parsing_error=True,
@@ -353,6 +362,8 @@ def run_and_compare_fems(
         fem1 = run_fem1(fem1, bdf_model, out_model, mesh_form, xref, punch, sum_load,
                         size, is_double,
                         run_extract_bodies=run_extract_bodies,
+                        save_file_structure=save_file_structure,
+                        hdf5=hdf5,
                         encoding=encoding, crash_cards=crash_cards, safe_xref=safe_xref,
                         pickle_obj=pickle_obj, stop=stop)
         is_mesh_opt = any([card_name in fem1.card_count for card_name in mesh_opt_cards])
@@ -372,7 +383,7 @@ def run_and_compare_fems(
                         safe_xref=safe_xref,
                         encoding=encoding, debug=debug, quiet=quiet,
                         ierror=ierror, nerrors=nerrors,
-                        stop_on_failure=stop_on_failure)
+                        stop_on_failure=stop_on_failure, log=log)
 
         diff_cards = compare(fem1, fem2, xref=xref, check=check,
                              print_stats=print_stats, quiet=quiet)
@@ -512,7 +523,8 @@ def run_nastran(bdf_model, nastran, post=-1, size=8, is_double=False):
         print(op2.get_op2_stats())
 
 def run_fem1(fem1, bdf_model, out_model, mesh_form, xref, punch, sum_load, size, is_double,
-             run_extract_bodies=False, encoding=None, crash_cards=None, safe_xref=True,
+             run_extract_bodies=False, save_file_structure=False, hdf5=False,
+             encoding=None, crash_cards=None, safe_xref=True,
              pickle_obj=False, stop=False):
     """
     Reads/writes the BDF
@@ -554,9 +566,11 @@ def run_fem1(fem1, bdf_model, out_model, mesh_form, xref, punch, sum_load, size,
     check_path(bdf_model, 'bdf_model')
     try:
         if '.pch' in bdf_model:
-            fem1.read_bdf(bdf_model, xref=False, punch=True, encoding=encoding)
+            fem1.read_bdf(bdf_model, xref=False, punch=True, encoding=encoding,
+                          save_file_structure=save_file_structure)
         else:
-            fem1.read_bdf(bdf_model, xref=False, punch=punch, encoding=encoding)
+            fem1.read_bdf(bdf_model, xref=False, punch=punch, encoding=encoding,
+                          save_file_structure=save_file_structure)
             for card in crash_cards:
                 if card in fem1.card_count:
                     raise DisabledCardError('card=%r has been disabled' % card)
@@ -591,9 +605,9 @@ def run_fem1(fem1, bdf_model, out_model, mesh_form, xref, punch, sum_load, size,
                 fem1.get_rigid_elements_with_node_ids(common_node_ids)
 
                 for spc_id in set(list(fem1.spcadds.keys()) + list(fem1.spcs.keys())):
-                    fem1.get_reduced_spcs(spc_id)
+                    fem1.get_reduced_spcs(spc_id, consider_spcadd=True)
                 for mpc_id in set(list(fem1.mpcadds.keys()) + list(fem1.mpcs.keys())):
-                    fem1.get_reduced_mpcs(mpc_id)
+                    fem1.get_reduced_mpcs(mpc_id, consider_mpcadd=True)
 
                 fem1.get_dependent_nid_to_components()
                 fem1._get_maps(eids=None, map_names=None,
@@ -630,6 +644,30 @@ def run_fem1(fem1, bdf_model, out_model, mesh_form, xref, punch, sum_load, size,
     #out_model = bdf_model + '_out'
     #if cid is not None and xref:
         #fem1.resolve_grids(cid=cid)
+
+    if hdf5:
+        hdf5_filename = out_model + '.h5'
+        fem1.export_to_hdf5_filename(hdf5_filename)
+        fem1a = BDF(log=fem1.log)
+        fem1a.load_hdf5_filename(hdf5_filename)
+        fem1a.validate()
+        bdf_stream = StringIO()
+        fem1a.write_bdf(bdf_stream, encoding=None, size=8,
+                        is_double=False, interspersed=False,
+                        enddata=None, write_header=True, close=True) # hdf5
+        for key, value in fem1.card_count.items():
+            if key == 'ENDDATA':
+                continue
+            hdf5_msg = ''
+            if key not in fem1a.card_count:
+                hdf5_msg += 'key=%r was not loaded to hdf5\n' % key
+
+            if hdf5_msg:
+                hdf5_msg += 'expected=%s\nactual=%s' % (
+                                    fem1.card_count, fem1a.card_count)
+                #raise RuntimeError(hdf5_msg)
+                self.log.error(hdf5_msg)
+        #sys.exit('hdf5')
 
     if mesh_form is None:
         pass
@@ -722,7 +760,7 @@ def run_fem2(bdf_model, out_model, xref, punch,
              sum_load, size, is_double, mesh_form,
              safe_xref=False,
              encoding=None, debug=False, quiet=False,
-             stop_on_failure=True, ierror=0, nerrors=100):
+             stop_on_failure=True, ierror=0, nerrors=100, log=None):
     """
     Reads/writes the BDF to verify nothing has been lost
 
@@ -753,7 +791,7 @@ def run_fem2(bdf_model, out_model, xref, punch,
     assert os.path.exists(bdf_model), bdf_model
     assert os.path.exists(out_model), out_model
 
-    fem2 = BDF(debug=debug, log=None)
+    fem2 = BDF(debug=debug, log=log)
     if not quiet:
         fem2.log.info('starting fem2')
     sys.stdout.flush()
@@ -1722,8 +1760,8 @@ def get_element_stats(fem1, unused_fem2, quiet=False):
         print('cg   = %s' % cg1)
         print('Ixx=%s, Iyy=%s, Izz=%s \nIxy=%s, Ixz=%s, Iyz=%s' % tuple(inertia1))
     assert np.allclose(mass1, mass2), 'mass1=%s mass2=%s' % (mass1, mass2)
-    assert np.allclose(cg1, cg2), 'mass=%s cg1=%s cg2=%s' % (mass1, cg1, cg2)
-    assert np.allclose(inertia1, inertia2), 'mass=%s cg=%s inertia1=%s inertia2=%s' % (mass1, cg1, inertia1, inertia2)
+    assert np.allclose(cg1, cg2), 'mass=%s\ncg1=%s cg2=%s' % (mass1, cg1, cg2)
+    assert np.allclose(inertia1, inertia2, atol=1e-5), 'mass=%s cg=%s\ninertia1=%s\ninertia2=%s\ndinertia=%s' % (mass1, cg1, inertia1, inertia2, inertia1-inertia2)
 
     for nsm_id in chain(fem1.nsms, fem1.nsmadds):
         mass, unused_cg, unused_inertia = fem1.mass_properties_nsm(
@@ -1738,7 +1776,7 @@ def get_element_stats(fem1, unused_fem2, quiet=False):
     mass2, cg2, inertia2 = fem1.mass_properties_nsm(reference_point=reference_point, sym_axis=None)
     assert np.allclose(mass1, mass2), 'reference_point=[10., 10., 10.]; mass1=%s mass2=%s' % (mass1, mass2)
     assert np.allclose(cg1, cg2), 'reference_point=[10., 10., 10.]; mass=%s cg1=%s cg2=%s' % (mass1, cg1, cg2)
-    assert np.allclose(inertia1, inertia2), 'reference_point=[10., 10., 10.]; mass=%s cg=%s inertia1=%s inertia2=%s' % (mass1, cg1, inertia1, inertia2)
+    assert np.allclose(inertia1, inertia2, atol=1e-5), 'reference_point=[10., 10., 10.]; mass=%s cg=%s inertia1=%s inertia2=%s' % (mass1, cg1, inertia1, inertia2)
 
 
 def get_matrix_stats(fem1, unused_fem2):
@@ -1828,7 +1866,7 @@ def get_test_bdf_data():
     encoding = sys.getdefaultencoding()
 
     from pyNastran.utils.docopt_types import docopt_types
-    options = '[-e E] [--encoding ENCODE] [-q] [-D] [-i] [--crash C] [-k] [-f] '
+    options = '[-e E] [--encoding ENCODE] [-q] [-D] [-i] [--crash C] [-k] [-f] [--hdf5] '
     msg = (
         "Usage:\n"
         '  test_bdf [-x | --safe] [-p] [-c] [-L]      %sBDF_FILENAME\n' % options +
@@ -1872,6 +1910,7 @@ def get_test_bdf_data():
         '  -f, --profile    Profiles the code (default=False)\n'
         '  -s, --stop       Stop after first read/write (default=False)\n'
         '  -k, --pickle     Pickles the data objects (default=False)\n'
+        '  --hdf5           Save/load the BDF in HDF5 format\n'
         '\n'
         'Info:\n'
         '  -h, --help     show this help message and exit\n'
@@ -1947,6 +1986,7 @@ def main():
             run_extract_bodies=False,
             pickle_obj=data['--pickle'],
             safe_xref=data['--safe'],
+            hdf5=data['--hdf5'],
             print_stats=True,
             stop_on_failure=False,
         )
@@ -1991,6 +2031,7 @@ def main():
             run_extract_bodies=False,
             pickle_obj=data['--pickle'],
             safe_xref=data['--safe'],
+            hdf5=data['--hdf5'],
             print_stats=True,
             stop_on_failure=False,
         )

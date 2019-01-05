@@ -100,7 +100,7 @@ def read_op2_geom(op2_filename=None, combine=True, subcases=None,
 class OP2GeomCommon(OP2, GEOM1, GEOM2, GEOM3, GEOM4, EPT, MPT, EDT, EDOM, DIT, DYNAMICS):
     """interface for the OP2Geom class for to loading subclasses"""
     def __init__(self, make_geom=True,
-                 debug=False, log=None, debug_file=None, mode='msc'):
+                 debug=False, log=None, debug_file=None, mode=None):
         """
         Initializes the OP2 object
 
@@ -115,7 +115,7 @@ class OP2GeomCommon(OP2, GEOM1, GEOM2, GEOM3, GEOM4, EPT, MPT, EDT, EDOM, DIT, D
             (.. seealso:: import logging)
         debug_file : default=None -> no debug
             sets the filename that will be written to
-        mode : str; default='msc'
+        mode : str; default=None -> 'msc'
             {msc, nx}
 
         """
@@ -131,7 +131,7 @@ class OP2GeomCommon(OP2, GEOM1, GEOM2, GEOM3, GEOM4, EPT, MPT, EDT, EDOM, DIT, D
         DIT.__init__(self)
         DYNAMICS.__init__(self)
 
-        OP2.__init__(self, debug, log=log, debug_file=debug_file, mode=mode)
+        OP2.__init__(self, debug=debug, log=log, debug_file=debug_file, mode=mode)
         self.make_geom = True
 
         # F:\work\pyNastran\pyNastran\master2\pyNastran\bdf\test\nx_spike\out_boltsold11b.op2
@@ -251,6 +251,10 @@ class OP2GeomCommon(OP2, GEOM1, GEOM2, GEOM3, GEOM4, EPT, MPT, EDT, EDOM, DIT, D
 
 class OP2Geom(BDF, OP2GeomCommon):
     """creates an interface for the OP2 and BDF classes"""
+    _properties = ['is_bdf_vectorized', 'nid_map', 'wtmass',
+                   'is_real', 'is_complex', 'is_random',
+                   '_sort_method', 'is_sort1', 'is_sort2',
+                   'matrix_tables', 'table_name_str']
     def __init__(self, make_geom=True,
                  debug=False, log=None, debug_file=None, mode='msc'):
         """
@@ -311,3 +315,24 @@ class OP2Geom(BDF, OP2GeomCommon):
                 #break
             #i += 1
         return state
+
+    def export_to_hdf5_file(self, hdf5_file, exporter=None):
+        """
+        Converts the OP2 objects into hdf5 object
+
+        Parameters
+        ----------
+        hdf5_file : H5File()
+            an h5py object
+        exporter : HDF5Exporter; default=None
+            unused
+
+        TODO: doesn't support:
+          - BucklingEigenvalues
+
+        """
+        from pyNastran.op2.op2_interface.hdf5_interface import export_op2_to_hdf5_file
+
+        op2_model = self
+        OP2GeomCommon.export_to_hdf5_file(self, hdf5_file)
+        BDF.export_to_hdf5_file(self, hdf5_file)

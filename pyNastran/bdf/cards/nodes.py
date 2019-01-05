@@ -53,6 +53,12 @@ class SEQGP(BaseCard):
     """defines the SEQGP class"""
     type = 'SEQGP'
 
+    @classmethod
+    def _init_from_empty(cls):
+        nids = 1
+        seqids = [2, 3]
+        return SEQGP(nids, seqids, comment='')
+
     def __init__(self, nids, seqids, comment=''):
         """
         Creates the SEQGP card
@@ -163,12 +169,28 @@ class SEQGP(BaseCard):
 
 class XPoint(BaseCard):
     """common class for EPOINT/SPOINT"""
+
+    @classmethod
+    def _init_from_empty(cls):
+        nid = 1
+        return cls(nid, comment='')
+
     def __init__(self, nid, comment):
         #Node.__init__(self)
         if comment:
             self.comment = comment
         self.nid = nid
         assert isinstance(nid, integer_types), nid
+
+    @classmethod
+    def _export_to_hdf5(cls, h5_file, model, nids):
+        """exports the nodes in a vectorized way"""
+        #comments = []
+        #for nid in nids:
+            #node = model.nodes[nid]
+            #comments.append(element.comment)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('nid', data=nids)
 
     @property
     def type(self):
@@ -326,6 +348,11 @@ class XPoints(BaseCard):
     def type(self):
         """dummy method for EPOINTs/SPOINTs classes"""
         raise NotImplementedError('This method should be overwritten by the parent class')
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1]
+        return cls(ids, comment='')
 
     def __init__(self, ids, comment=''):
         #Node.__init__(self)
@@ -519,6 +546,14 @@ class GRDSET(BaseCard):
 
     #: allows the get_field method and update_field methods to be used
     _field_map = {2:'cp', 6:'cd', 7:'ps', 8:'seid'}
+
+    @classmethod
+    def _init_from_empty(cls):
+        cp = 0
+        cd = 1
+        ps = '34'
+        seid = 0
+        return GRDSET(cp, cd, ps, seid, comment='')
 
     def __init__(self, cp, cd, ps, seid, comment=''):
         """
@@ -978,6 +1013,32 @@ class GRID(BaseCard):
             self.xyz[2] = value
         else:
             raise KeyError('Field %r=%r is an invalid %s entry.' % (n, value, self.type))
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, nids):
+        """exports the nodes in a vectorized way"""
+        comments = []
+        cp = []
+        xyz = []
+        cd = []
+        ps = []
+        seid = []
+        for nid in nids:
+            node = model.nodes[nid]
+            #comments.append(element.comment)
+            xyz.append(node.xyz)
+            cp.append(node.cp)
+            cd.append(node.cd)
+            psi = 0 if node.ps == '' else (int(node.ps))
+            ps.append(psi)
+            seid.append(node.seid)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('nid', data=nids)
+        h5_file.create_dataset('xyz', data=xyz)
+        h5_file.create_dataset('cp', data=cp)
+        h5_file.create_dataset('cd', data=cd)
+        h5_file.create_dataset('ps', data=ps)
+        h5_file.create_dataset('seid', data=seid)
 
     def __init__(self, nid, xyz, cp=0, cd=0, ps='', seid=0, comment=''):
         # type: (int, Union[None, List[float], np.ndarray], int, int, str, int, str) -> None
@@ -1526,6 +1587,12 @@ class POINT(BaseCard):
         else:
             raise KeyError('Field %r=%r is an invalid %s entry.' % (n, value, self.type))
 
+    @classmethod
+    def _init_from_empty(cls):
+        nid = 1
+        xyz = [1., 2., 3.]
+        return POINT(nid, xyz, cp=0, comment='')
+
     def __init__(self, nid, xyz, cp=0, comment=''):
         # type: (int, Union[List[float], np.ndarray], int, str) -> None
         """
@@ -1605,7 +1672,7 @@ class POINT(BaseCard):
         nid = data[0] # type: int
         cp = data[1] # type: int
         xyz = np.array(data[2:5]) # type: np.ndarray
-        return POINT(nid, cp, xyz, comment=comment)
+        return POINT(nid, xyz, cp=cp, comment=comment)
 
     def set_position(self, model, xyz, cid=0):
         # type: (Any, np.ndarray, int) -> None

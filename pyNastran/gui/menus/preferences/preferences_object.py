@@ -40,6 +40,9 @@ class PreferencesObject(object):
             'text_size' : settings.text_size,
             'text_color' : settings.text_color,
 
+            'highlight_color' : settings.highlight_color,
+            'highlight_opacity' : settings.highlight_opacity,
+
             'picker_size' : self.gui.element_picker_size,
             'dim_max' : settings.dim_max,
             'coord_scale' : settings.coord_scale,
@@ -49,6 +52,13 @@ class PreferencesObject(object):
 
             'min_clip' : min_clip,
             'max_clip' : max_clip,
+
+            'nastran_is_element_quality' : settings.nastran_is_element_quality,
+            'nastran_is_properties' : settings.nastran_is_properties,
+            'nastran_is_bar_axes' : settings.nastran_is_bar_axes,
+            'nastran_is_3d_bars' : settings.nastran_is_3d_bars,
+            'nastran_is_3d_bars_update' : settings.nastran_is_3d_bars_update,
+            'nastran_create_coords' : settings.nastran_create_coords,
 
             'clicked_ok' : False,
             'close' : False,

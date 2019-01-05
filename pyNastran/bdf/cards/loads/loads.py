@@ -258,6 +258,13 @@ class LSEQ(BaseCard):  # Requires LOADSET in case control deck
     """
     type = 'LSEQ'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        excite_id = 2
+        lid = 3
+        return LSEQ(sid, excite_id, lid, tid=None, comment='')
+
     def __init__(self, sid, excite_id, lid, tid=None, comment=''):
         """
         Creates a LSEQ card
@@ -340,11 +347,13 @@ class LSEQ(BaseCard):  # Requires LOADSET in case control deck
 
         """
         msg = ', which is required by LSEQ=%s' % (self.sid)
-        self.lid_ref = model.Load(self.lid, consider_load_combinations=True, msg=msg)
+        if self.lid is not None:
+            self.lid_ref = model.Load(self.lid, consider_load_combinations=True, msg=msg)
         #self.excite_id = model.Node(self.excite_id, msg=msg)
         if self.tid:
             # TODO: temperature set, not a table?
-            self.tid_ref = model.Table(self.tid, msg=msg)
+            self.tid_ref = model.Load(self.tid, consider_load_combinations=True, msg=msg)
+            #self.tid_ref = model.Table(self.tid, msg=msg)
 
     def safe_cross_reference(self, model, xref_errors):
         return self.cross_reference(model)
@@ -379,9 +388,14 @@ class LSEQ(BaseCard):  # Requires LOADSET in case control deck
             #return self.excite_id
         #return self.excite_id.nid
 
+    #def Tid(self):
+        #if self.tid_ref is not None:
+            #return self.tid_ref.tid
+        #return self.tid
+
     def Tid(self):
         if self.tid_ref is not None:
-            return self.tid_ref.tid
+            return self.LoadID(self.tid_ref)
         return self.tid
 
     def raw_fields(self):
@@ -398,6 +412,15 @@ class LSEQ(BaseCard):  # Requires LOADSET in case control deck
 
 class LOADCYN(Load):
     type = 'LOADCYN'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        scale = 1.
+        segment_id = 2
+        scales = [1., 2.]
+        load_ids = [10, 20]
+        return LOADCYN(sid, scale, segment_id, scales, load_ids, segment_type=None, comment='')
 
     def __init__(self, sid, scale, segment_id, scales, load_ids, segment_type=None, comment=''):
         if comment:
@@ -485,6 +508,15 @@ class DAREA(BaseCard):
     +-------+-----+----+----+-----+----+----+------+
     """
     type = 'DAREA'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nodes = [1]
+        components = [1]
+        scales = [1.]
+        return DAREA(sid, nodes, components, scales, comment='')
 
     def __init__(self, sid, nodes, components, scales, comment=''):
         """
@@ -519,7 +551,7 @@ class DAREA(BaseCard):
 
         assert isinstance(components, list), 'components=%r' % components
         for component in components:
-            assert 0 <= component <= 6, component
+            assert 0 <= component <= 6, 'component=%r' % component
         self.scales = scales
         self.nodes_ref = None
 
@@ -633,6 +665,15 @@ class SPCD(Load):
      +------+-----+-----+-----+------+----+----+----+
     """
     type = 'SPCD'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nodes = [1]
+        components = ['1']
+        enforced = 1.
+        return SPCD(sid, nodes, components, enforced, comment='')
 
     def __init__(self, sid, nodes, components, enforced, comment=''):
         """
@@ -785,6 +826,13 @@ class DEFORM(Load):
     """
     type = 'DEFORM'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        eid = 1
+        deformation = 1.
+        return DEFORM(sid, eid, deformation, comment='')
+
     def __init__(self, sid, eid, deformation, comment=''):
         """
         Creates an DEFORM card, which defines applied deformation on
@@ -903,6 +951,14 @@ class SLOAD(Load):
     displacement coordinate system (see the CD field on the GRID entry).
     """
     type = 'SLOAD'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nodes = [1]
+        mags = [1.]
+        return SLOAD(sid, nodes, mags, comment='')
 
     def __init__(self, sid, nodes, mags, comment=''):
         """
@@ -1039,6 +1095,16 @@ class SLOAD(Load):
 
 class RFORCE(Load):
     type = 'RFORCE'
+    _properties = ['node_id']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nid = 1
+        scale = 1.
+        r123 = [1., 0., 1.]
+        return RFORCE(sid, nid, scale, r123,
+                      cid=0, method=1, racc=0., mb=0, idrf=0, comment='')
 
     def __init__(self, sid, nid, scale, r123, cid=0, method=1, racc=0.,
                  mb=0, idrf=0, comment=''):
@@ -1231,6 +1297,15 @@ class RFORCE1(Load):
     +---------+------+----+---------+---+----+----+----+--------+
     """
     type = 'RFORCE1'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        nid = 1
+        scale = 1.
+        group_id = 1
+        return RFORCE1(sid, nid, scale, group_id,
+                       cid=0, r123=None, racc=0., mb=0, method=2, comment='')
 
     def __init__(self, sid, nid, scale, group_id,
                  cid=0, r123=None, racc=0., mb=0, method=2, comment=''):

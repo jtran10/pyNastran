@@ -1,6 +1,7 @@
 # pylint: disable=R0902,R0904,R0914,C0111
 from __future__ import (nested_scopes, generators, division, absolute_import,
                         print_function, unicode_literals)
+import numpy as np
 
 from pyNastran.utils.numpy_utils import integer_types
 from pyNastran.bdf.field_writer_8 import set_blank_if_default, print_card_8
@@ -58,8 +59,8 @@ class CHBDYE(ThermalElement):
     +--------+-----+------+------+--------+--------+---------+---------+
     """
     type = 'CHBDYE'
-
-    hexMap = {
+    _properties = ['hex_map', 'pent_map', 'tet_map', 'side_maps']
+    hex_map = {
         1: [4, 3, 2, 1],
         2: [1, 2, 6, 5],
         3: [2, 3, 7, 6],
@@ -68,7 +69,7 @@ class CHBDYE(ThermalElement):
         6: [5, 6, 7, 8],
     }
 
-    pentMap = {
+    pent_map = {
         1: [3, 2, 1],
         2: [1, 2, 5, 4],
         3: [2, 3, 6, 5],
@@ -76,7 +77,7 @@ class CHBDYE(ThermalElement):
         5: [4, 5, 6],
     }
 
-    tetMap = {
+    tet_map = {
         1: [1, 3, 2],
         2: [1, 2, 4],
         3: [2, 3, 4],
@@ -84,14 +85,23 @@ class CHBDYE(ThermalElement):
     }
 
     side_maps = {
-        'CHEXA': hexMap,
-        'CPENTA': pentMap,
-        'CTETRA': tetMap,
+        'CHEXA': hex_map,
+        'CPENTA': pent_map,
+        'CTETRA': tet_map,
         'CTRIA3': [1, 2, 3],
         'CQUAD4': [1, 2, 3, 4],
     }
 
     #pid = 0
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        eid2 = 2
+        side = 1
+        return CHBDYE(eid, eid2, side, iview_front=0, ivew_back=0,
+                      rad_mid_front=0, rad_mid_back=0, comment='')
+
     def __init__(self, eid, eid2, side, iview_front=0, ivew_back=0,
                  rad_mid_front=0, rad_mid_back=0, comment=''):
         """
@@ -285,6 +295,15 @@ class CHBDYG(ThermalElement):
     +--------+-----+----+------+--------+--------+---------+---------+-----+
     """
     type = 'CHBDYG'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        surface_type = 'AREA3'
+        nodes = [1, 2]
+        return CHBDYG(eid, surface_type, nodes, iview_front=0, ivew_back=0,
+                      rad_mid_front=0, rad_mid_back=0, comment='')
 
     def __init__(self, eid, surface_type, nodes, iview_front=0, ivew_back=0,
                  rad_mid_front=0, rad_mid_back=0, comment=''):
@@ -321,7 +340,7 @@ class CHBDYG(ThermalElement):
     def validate(self):
         #assert self.surface_type in ['REV', 'AREA3', 'AREA4', 'AREA6', 'AREA8'], 'surface_type=%r' % self.surface_type
         if self.surface_type == 'REV':
-            assert len(self.nodes) == 3, 'CHBDYG: REV; nodes=%s' % str(self.nodes)
+            assert len(self.nodes) in [2, 3], 'CHBDYG: REV; nodes=%s' % str(self.nodes)
         elif self.surface_type == 'REV1':
             assert len(self.nodes) == 3, 'CHBDYG: REV; nodes=%s' % str(self.nodes)
         else:
@@ -511,6 +530,26 @@ class CHBDYP(ThermalElement):
     +--------+---------+---------+------+--------+--------+----+----+----+
     """
     type = 'CHBDYP'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pid = 2
+        surface_type = 'AREA3'
+        g1 = 1
+        g2 = 2
+        return CHBDYP(eid, pid, surface_type, g1, g2, g0=0, gmid=None, ce=0,
+                      iview_front=0, ivew_back=0,
+                      rad_mid_front=0, rad_mid_back=0,
+                      e1=None, e2=None, e3=None, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.nodes, np.ndarray):
+            self.nodes = self.nodes.tolist()
+        self.nodes = [None if np.isnan(nid) else nid
+                      for nid in self.nodes]
 
     def __init__(self, eid, pid, surface_type, g1, g2, g0=0, gmid=None, ce=0,
                  iview_front=0, ivew_back=0,
@@ -850,6 +889,13 @@ class PCONV(ThermalProperty):
     """
     type = 'PCONV'
 
+    @classmethod
+    def _init_from_empty(cls):
+        pconid = 1
+        mid = 1
+        return PCONV(pconid, mid, form=0, expf=0.0, ftype=0, tid=None,
+                     chlen=None, gidin=None, ce=0, e1=None, e2=None, e3=None, comment='')
+
     def __init__(self, pconid, mid, form=0, expf=0.0, ftype=0, tid=None,
                  chlen=None, gidin=None, ce=0,
                  e1=None, e2=None, e3=None, comment=''):
@@ -1042,7 +1088,15 @@ class PCONVM(ThermalProperty):
     """
     type = 'PCONVM'
 
-    def __init__(self, pconid, mid, coef, form=0, flag=0,
+    @classmethod
+    def _init_from_empty(cls):
+        pconid = 1
+        mid = 1
+        coeff = 0.1
+        return PCONVM(pconid, mid, coeff, form=0, flag=0,
+                      expr=0.0, exppi=0.0, exppo=0.0, comment='')
+
+    def __init__(self, pconid, mid, coeff, form=0, flag=0,
                  expr=0.0, exppi=0.0, exppo=0.0, comment=''):
         """
         Creates a PCONVM card
@@ -1053,7 +1107,7 @@ class PCONVM(ThermalProperty):
             Convection property ID
         mid: int
             Material ID
-        coef: float
+        coeff: float
             Constant coefficient used for forced convection
         form: int; default=0
             Type of formula used for free convection
@@ -1092,7 +1146,7 @@ class PCONVM(ThermalProperty):
         self.flag = flag
 
         #: Constant coefficient used for forced convection
-        self.coef = coef
+        self.coef = coeff
 
         #: Reynolds number convection exponent. (Real > 0.0; Default = 0.0)
         self.expr = expr
@@ -1182,6 +1236,11 @@ class PHBDY(ThermalProperty):
     +-------+-----+------+-----+-----+
     """
     type = 'PHBDY'
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        return PHBDY(pid, af=None, d1=None, d2=None, comment='')
 
     def __init__(self, pid, af=None, d1=None, d2=None, comment=''):
         """
@@ -1308,6 +1367,14 @@ class CONV(ThermalBC):
     through connection to a surface element (CHBDYi entry).
     """
     type = 'CONV'
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        nodamb = 1
+        pconid = 2
+        ta = 1.0
+        return CONV(eid, pconid, ta, film_node=0, cntrlnd=0, comment='')
 
     def __init__(self, eid, pconid, ta, film_node=0, cntrlnd=0, comment=''):
         """
@@ -1478,6 +1545,15 @@ class CONV(ThermalBC):
 
 class TEMPBC(ThermalBC):
     type = 'TEMPBC'
+    _properties = ['eid']
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        Type = 1
+        nodes = [1, 2]
+        temps = [10., 20.]
+        return TEMPBC(sid, Type, nodes, temps, comment='')
 
     def __init__(self, sid, Type, nodes, temps, comment=''):
         ThermalBC.__init__(self)
@@ -1558,6 +1634,15 @@ class CONVM(ThermalBC):
     +-------+-----+--------+-------+---------+-----+-----+------+
     """
     type = 'CONVM'
+    _properties = ['film_node_id', 'pconvm_id']
+
+    @classmethod
+    def _init_from_empty(cls):
+        eid = 1
+        pconvm = 2
+        ta1 = 1.0
+        return CONVM(eid, pconvm, ta1, film_node=0, cntmdot=0,
+                     ta2=None, mdot=1.0, comment='')
 
     def __init__(self, eid, pconvm, ta1, film_node=0, cntmdot=0,
                  ta2=None, mdot=1.0, comment=''):

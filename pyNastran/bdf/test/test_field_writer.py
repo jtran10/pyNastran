@@ -15,6 +15,10 @@ from pyNastran.bdf.bdf_interface.assign_type import interpret_value
 
 class Testfield_writer_8(unittest.TestCase):
 
+    def test_field_vals_8_edge_cases(self):
+        self.assertEqual(print_field_8(-999999.56), '  -10.+5',
+                         print_field_8(-999999.56))
+
     def test_field_vals_8(self):
         self.assertEqual(print_field_8(1e20), '   1.+20',
                          print_field_8(1e20))
@@ -445,7 +449,7 @@ def compare(value_in):
     val = interpret_value(field)
     if val != 0:
         p = (val - value_in) / val
-        if p > 0.01:
+        if p > 0.01:  # pragma: no cover
             raise ValueError('val=%s value_in=%s' % (val, value_in))
 
 if __name__ == "__main__":  # pragma: no cover

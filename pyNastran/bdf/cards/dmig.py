@@ -3,6 +3,8 @@ from __future__ import (nested_scopes, generators, division, absolute_import,
                         print_function, unicode_literals)
 from math import sin, cos, radians, atan2, sqrt, degrees
 
+from six import binary_type
+
 import numpy as np
 from numpy import array, zeros
 from scipy.sparse import coo_matrix  # type: ignore
@@ -37,6 +39,27 @@ class DTI(BaseCard):
     NX
     """
     type = 'DTI'
+    #_properties = ['shape', 'ifo', 'is_real', 'is_complex', 'is_polar', 'matrix_type', 'tin_dtype', 'tout_dtype']
+
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'name'
+        fields = []
+        return DTI(name, fields, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        keys, values = self.fields
+
+        # nan != nan
+        values = [value if value == value else None for value in values]
+        values_str = [value.decode(encoding) if isinstance(value, binary_type) else value
+                      for value in values]
+        #values = [valuei.decode(encoding) if isinstance(valuei, bytes) else (
+        #    None if np.isnan(valuei) else valuei)
+        #          for valuei in values]
+        self.fields = {key : value for key, value in zip(keys, values_str)}
+
     def __init__(self, name, fields, comment=''):
         """
         Creates a DTI card
@@ -109,6 +132,10 @@ class NastranMatrix(BaseCard):
     """
     Base class for the DMIG, DMIJ, DMIJI, DMIK matrices
     """
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        self.finalize()
+
     def __init__(self, name, matrix_form, tin, tout, polar, ncols,
                  GCj, GCi, Real, Complex=None, comment='', finalize=True):
         """
@@ -936,6 +963,10 @@ class DMIG_UACCEL(BaseCard):
         #print(str(self))
 
     @classmethod
+    def export_to_hdf5(cls, h5_file, model, encoding):
+        _export_dmig_to_hdf5(h5_file, model, model.dmigs, encoding)
+
+    @classmethod
     def add_card(cls, card, comment=''):
         """
         Adds a DMIG,UACCEL card from ``BDF.add_card(...)``
@@ -1050,6 +1081,25 @@ class DMIG(NastranMatrix):
     +------+------+----+-----+-----+------+-------+----+------+
     """
     type = 'DMIG'
+    _properties = ['is_real', 'is_complex', 'is_polar', 'matrix_type', 'shape', 'tin_dtype', 'tout_dtype']
+
+    #@classmethod
+    #def _init_from_empty(cls):
+        #name = 'name'
+        #ifo = 1
+        #tin = 1
+        #tout = 1
+        #polar = 0
+        #ncols = 1
+        #GCj = []
+        #GCi = []
+        #Real = []
+        #return DMIG(name, ifo, tin, tout, polar, ncols, GCj, GCi, Real,
+                    #Complex=None, comment='', finalize=True)
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, encoding):
+        _export_dmig_to_hdf5(h5_file, model, model.dmigs, encoding)
 
     def __init__(self, name, ifo, tin, tout, polar, ncols,
                  GCj, GCi, Real, Complex=None, comment='', finalize=True):
@@ -1353,6 +1403,25 @@ class DMIJ(NastranMatrix):
 
     """
     type = 'DMIJ'
+    _properties = ['shape', 'ifo', 'is_real', 'is_complex', 'is_polar', 'matrix_type', 'tin_dtype', 'tout_dtype']
+
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'name'
+        ifo = 1
+        tin = 1
+        tout = 1
+        polar = 0
+        ncols = 1
+        GCj = []
+        GCi = []
+        Real = []
+        return DMIJ(name, ifo, tin, tout, polar, ncols, GCj, GCi, Real,
+                    Complex=None, comment='', finalize=True)
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, encoding):
+        _export_dmig_to_hdf5(h5_file, model, model.dmijs, encoding)
 
     def __init__(self, name, matrix_form, tin, tout, polar, ncols,
                  GCj, GCi, Real, Complex=None, comment='',
@@ -1419,6 +1488,25 @@ class DMIJI(NastranMatrix):
 
     """
     type = 'DMIJI'
+    _properties = ['shape', 'ifo', 'is_real', 'is_complex', 'is_polar', 'matrix_type', 'tin_dtype', 'tout_dtype']
+
+    #@classmethod
+    #def _init_from_empty(cls):
+        #name = 'name'
+        #ifo = 1
+        #tin = 1
+        #tout = 1
+        #polar = 0
+        #ncols = 1
+        #GCj = []
+        #GCi = []
+        #Real = []
+        #return DMIJI(name, ifo, tin, tout, polar, ncols, GCj, GCi, Real,
+                     #Complex=None, comment='', finalize=True)
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, encoding):
+        _export_dmig_to_hdf5(h5_file, model, model.dmijis, encoding)
 
     def __init__(self, name, ifo, tin, tout, polar, ncols,
                  GCj, GCi, Real, Complex=None, comment='', finalize=True):
@@ -1497,6 +1585,25 @@ class DMIK(NastranMatrix):
     +------+-------+----+-----+-----+------+-------+----+------+
     """
     type = 'DMIK'
+    _properties = ['shape', 'ifo', 'is_real', 'is_complex', 'is_polar', 'matrix_type', 'tin_dtype', 'tout_dtype']
+
+    #@classmethod
+    #def _init_from_empty(cls):
+        #name = 'name'
+        #ifo = 1
+        #tin = 1
+        #tout = 1
+        #polar = 0
+        #ncols = 1
+        #GCj = []
+        #GCi = []
+        #Real = []
+        #return DMIK(name, ifo, tin, tout, polar, ncols, GCj, GCi, Real,
+                    #Complex=None, comment='', finalize=True)
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, encoding):
+        _export_dmig_to_hdf5(h5_file, model, model.dmiks, encoding)
 
     def __init__(self, name, ifo, tin, tout, polar, ncols,
                  GCj, GCi, Real, Complex=None, comment='', finalize=True):
@@ -1562,6 +1669,24 @@ class DMI(NastranMatrix):
     +------+-------+------+------+---------+----------+-----------+-----------+------+
     """
     type = 'DMI'
+    _properties = ['shape', 'ifo', 'is_real', 'is_complex', 'is_polar', 'matrix_type', 'tin_dtype', 'tout_dtype']
+
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'name'
+        matrix_form = 8
+        tin = 1
+        tout = 1
+        nrows = 5
+        ncols = 5
+        GCj = []
+        GCi = []
+        Real = []
+        return DMI(name, matrix_form, tin, tout, nrows, ncols, GCj, GCi, Real, Complex=None, comment='', finalize=False)
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, encoding):
+        _export_dmig_to_hdf5(h5_file, model, model.dmis, encoding)
 
     def __init__(self, name, matrix_form, tin, tout, nrows, ncols,
                  GCj, GCi, Real, Complex=None, comment='', finalize=True):
@@ -1906,3 +2031,57 @@ class DMI(NastranMatrix):
 
         """
         return self.write_card(size=8, is_double=False)
+
+def _export_dmig_to_hdf5(h5_file, model, dict_obj, encoding):
+    """export dmigs, dmijs, dmijis, dmiks, dmis"""
+    for name, dmig in dict_obj.items():
+        dmig_group = h5_file.create_group(name)
+        dmig_group.create_dataset('tin', data=dmig.tin)
+
+        if hasattr(dmig, 'tout'):
+            dmig_group.create_dataset('tout', data=dmig.tout)
+
+        if dmig.type == 'DMIG' and name == 'UACCEL':
+            if dmig.ncol is not None:
+                dmig_group.create_dataset('ncol', data=dmig.ncol)
+            load_seq_group = dmig_group.create_group('load_sequences')
+
+            nids = []
+            dofs = []
+            values = []
+            for lseq, ncx in sorted(dmig.load_sequences.items()):
+                lseq_group = load_seq_group = dmig_group.create_group(str(lseq))
+                #list_fields += [lseq, None, None]
+                for (nid, dof, value) in ncx:
+                    nids.append(nid)
+                    dofs.append(int(dof))
+                    values.append(value)
+
+                    #print('nids =', nids)
+                    #print('dofs =', dofs)
+                    #print('values =', values)
+                lseq_group.create_dataset('nids', data=nids)
+                lseq_group.create_dataset('dofs', data=dofs)
+                lseq_group.create_dataset('values', data=values)
+        else:
+            if hasattr(dmig, 'nrows') and dmig.nrows is not None:
+                dmig_group.create_dataset('nrows', data=dmig.nrows)
+            if dmig.ncols is not None:
+                dmig_group.create_dataset('ncols', data=dmig.ncols)
+            if hasattr(dmig, 'polar'):
+                dmig_group.create_dataset('polar', data=dmig.polar)
+
+            dmig_group.create_dataset('matrix_form', data=dmig.matrix_form)
+            dmig_group.create_dataset('tin_dtype', data=dmig.tin_dtype)
+            dmig_group.create_dataset('tout_dtype', data=dmig.tout_dtype)
+
+            dmig_group.create_dataset('matrix_type', data=dmig.matrix_type)
+            dmig_group.create_dataset('is_complex', data=dmig.is_complex)
+            dmig_group.create_dataset('is_real', data=dmig.is_real)
+            dmig_group.create_dataset('is_polar', data=dmig.is_polar)
+
+            dmig_group.create_dataset('GCi', data=dmig.GCi)
+            dmig_group.create_dataset('GCj', data=dmig.GCj)
+            dmig_group.create_dataset('Real', data=dmig.Real)
+            if hasattr(dmig, 'Complex') and dmig.Complex is not None:
+                dmig_group.create_dataset('Complex', data=dmig.Complex)

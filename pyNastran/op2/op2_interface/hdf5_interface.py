@@ -173,6 +173,7 @@ TABLE_OBJ_MAP = {
     'RADCONS.eigenvectors' : (RealEigenvectorArray, ),
     'RADEATC.eigenvectors' : (RealEigenvectorArray, ),
     'RADEFFM.eigenvectors' : (RealEigenvectorArray, ),
+    'ROUGV1.eigenvectors' : (RealEigenvectorArray, ),
 
     'force_vectors' : (RealForceVectorArray, ),
 
@@ -960,8 +961,8 @@ def _load_table(result_name, h5_result, objs, log, debug=False):# real_obj, comp
     if obj_class is None:
         log.warning('  unhandled result_name=%r class_name=%r...' % (
             result_name, class_name))
-        #raise NotImplementedError('  unhandled result_name=%r class_name=%r...' % (
-            #result_name, class_name))
+        raise NotImplementedError('  unhandled result_name=%r class_name=%r...' % (
+            result_name, class_name))
         return None
 
     obj = obj_class(data_code, is_sort1, isubcase, dt)
@@ -1019,7 +1020,8 @@ def _get_obj_class(objs, class_name, result_name, unused_is_real, log):
     #obj_map = {obj.__class__.__name__ : obj for obj in objs if obj is not None}
 
     # does what the two previous lines should do...
-    obj_map = {str(obj).split("'")[1].split('.')[-1] : obj for obj in objs if obj is not None}
+    obj_map = {str(obj).split("'")[1].split('.')[-1] : obj
+               for obj in objs if obj is not None}
     try:
         obj_class = obj_map[class_name]
     except KeyError:
@@ -1053,16 +1055,17 @@ def _get_obj_class(objs, class_name, result_name, unused_is_real, log):
             #obj_class = complex_obj
     return obj_class
 
-def export_op2_to_hdf5_file(hdf5_filename, op2_model):
+def export_op2_to_hdf5_filename(hdf5_filename, op2_model):
     """exports an OP2 object to an HDF5 file"""
     #no_sort2_classes = ['RealEigenvalues', 'ComplexEigenvalues', 'BucklingEigenvalues']
 
     with h5py.File(hdf5_filename, 'w') as hdf5_file:
         op2_model.log.info('starting export_op2_to_hdf5_file of %r' % hdf5_filename)
-        export_op2_to_hdf5(hdf5_file, op2_model)
+        export_op2_to_hdf5_file(hdf5_file, op2_model)
 
-def export_op2_to_hdf5(hdf5_file, op2_model):
+def export_op2_to_hdf5_file(hdf5_file, op2_model):
     """exports an OP2 object to an HDF5 file object"""
+    assert not isinstance(hdf5_file, str), hdf5_file
     create_info_group(hdf5_file, op2_model)
     export_matrices(hdf5_file, op2_model)
     _export_subcases(hdf5_file, op2_model)
@@ -1094,6 +1097,9 @@ def _export_subcases(hdf5_file, op2_model):
     subcase_groups = {}
     result_types = op2_model.get_table_types()
     for result_type in result_types:
+        if result_type == 'params':
+            op2_model.log.debug('skipping %s' % result_type)
+            continue
         result = op2_model.get_result(result_type)
         #if len(result):
             #print(result)
@@ -1118,6 +1124,9 @@ def _export_subcases(hdf5_file, op2_model):
             obj.export_to_hdf5(result_group, op2_model.log)
 
 def load_op2_from_hdf5(hdf5_filename, combine=True, log=None):
+    return load_op2_from_hdf5_filename(hdf5_filename, combine=combine, log=log)
+
+def load_op2_from_hdf5_filename(hdf5_filename, combine=True, log=None):
     """loads an hdf5 file into an OP2 object"""
     check_path(hdf5_filename, 'hdf5_filename')
     model = OP2(log=None)
@@ -1179,8 +1188,8 @@ def load_op2_from_hdf5_file(model, h5_file, log, debug=False):
             pass
         elif key == 'matrices':
             _read_h5_matrix(h5_file, model, key, log)
-        else:
-            log.warning('key = %r' % key)
+        #else:
+            #log.warning('key = %r' % key)
             #raise NotImplementedError('  unhandled %r...' % key)
 
 def _read_h5_matrix(h5_file, model, key, log):

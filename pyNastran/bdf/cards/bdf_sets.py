@@ -37,6 +37,7 @@ The superelement sets start with SE:
 from __future__ import (nested_scopes, generators, division, absolute_import,
                         print_function, unicode_literals)
 from six import string_types
+import numpy as np
 
 from pyNastran.utils.numpy_utils import integer_types, integer_string_types
 from pyNastran.bdf.cards.base_card import (
@@ -55,8 +56,6 @@ class Set(BaseCard):
     """Generic Class all SETx cards inherit from"""
 
     def __init__(self):
-        #:  Unique identification number. (Integer > 0)
-        self.sid = None
         #:  list of IDs in the SETx
         self.ids = []
 
@@ -64,13 +63,6 @@ class Set(BaseCard):
         """eliminates duplicate IDs from self.IDs and sorts self.IDs"""
         self.ids = list(set(self.ids))
         self.ids.sort()
-
-    #def cleanIDs(self):
-        #self.clean_ids()
-
-    #def SetIDs(self):
-        #"""gets the IDs of the SETx"""
-        #return collapse_thru(self.ids)
 
     def repr_fields(self):
         list_fields = self.raw_fields()
@@ -110,6 +102,14 @@ class ABCQSet(Set):
     +------+-----+----+-----+------+-----+----+-----+----+
     """
     type = 'ABCQSet'
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.ids, np.ndarray):
+            self.ids = self.ids.tolist()
+        if isinstance(self.components, np.ndarray):
+            self.components = self.components.tolist()
+
     def __init__(self, ids, components, comment=''):
         Set.__init__(self)
         if comment:
@@ -195,6 +195,14 @@ class SuperABCQSet(Set):
     +--------+------+-----+----+-----+------+-----+-----+-----+
     """
     type = 'SuperABCQSet'
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.ids, np.ndarray):
+            self.ids = self.ids.tolist()
+        if isinstance(self.components, np.ndarray):
+            self.components = self.components.tolist()
+
     def __init__(self, seid, ids, components, comment=''):
         Set.__init__(self)
         if comment:
@@ -278,6 +286,13 @@ class ASET(ABCQSet):
     +------+-----+----+-----+------+-----+----+-----+----+
     """
     type = 'ASET'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = ['123', '456']
+        return ASET(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -313,6 +328,13 @@ class BSET(ABCQSet):
     +------+-----+----+-----+------+-----+----+-----+----+
     """
     type = 'BSET'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = ['123', '456']
+        return BSET(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -350,6 +372,13 @@ class CSET(ABCQSet):
     +------+-----+----+-----+------+-----+----+-----+----+
     """
     type = 'CSET'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = ['123', '456']
+        return CSET(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -386,6 +415,13 @@ class QSET(ABCQSet):
     +------+-----+----+-----+------+-----+----+-----+----+
     """
     type = 'QSET'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = ['123', '456']
+        return QSET(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -423,6 +459,12 @@ class ABQSet1(Set):
     +-------+-----+-----+------+-----+-----+-----+-----+-----+
     """
     type = 'ABQSet1'
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.ids, np.ndarray):
+            self.ids = self.ids.tolist()
+
     def __init__(self, ids, components, comment=''):
         Set.__init__(self)
         if comment:
@@ -526,6 +568,11 @@ class SuperABQSet1(Set):
     +----------+------+-----+------+------+-----+-----+-----+-----+
     """
     type = 'SuperABQSet1'
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.ids, np.ndarray):
+            self.ids = self.ids.tolist()
+
     def __init__(self, seid, ids, components, comment=''):
         Set.__init__(self)
         if comment:
@@ -623,6 +670,13 @@ class ASET1(ABQSet1):
     +-------+-----+-----+------+-----+-----+-----+-----+-----+
     """
     type = 'ASET1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = '123'
+        return ASET1(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -657,6 +711,12 @@ class OMIT1(ABQSet1):
     +-------+-----+-----+------+-----+-----+-----+-----+-----+
     """
     type = 'OMIT1'
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = '123'
+        return OMIT1(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -693,6 +753,13 @@ class BSET1(ABQSet1):
     +-------+-----+-----+------+-----+-----+-----+-----+-----+
     """
     type = 'BSET1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = '123'
+        return BSET1(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -732,6 +799,13 @@ class CSET1(Set):
     +-------+-----+-----+------+-----+-----+-----+-----+-----+
     """
     type = 'CSET1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = '123'
+        return CSET1(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -823,6 +897,13 @@ class QSET1(ABQSet1):
     dynamic reduction or component mode synthesis.
     """
     type = 'QSET1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        ids = [1, 2]
+        components = '123'
+        return QSET1(ids, components, comment='')
 
     def __init__(self, ids, components, comment=''):
         """
@@ -865,6 +946,12 @@ class SET1(Set):
     +------+--------+--------+-----+------+-----+-----+------+-----+
     """
     type = 'SET1'
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        ids = [1]
+        return SET1(sid, ids, is_skin=False, comment='')
 
     def __init__(self, sid, ids, is_skin=False, comment=''):
         """
@@ -1104,6 +1191,13 @@ class SET3(Set):
     type = 'SET3'
     valid_descs = ['GRID', 'POINT', 'ELEMENT', 'PROP', 'RBEIN', 'RBEEX']
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        desc = 'ELEM'
+        ids = [1]
+        return SET3(sid, desc, ids, comment='')
+
     def __init__(self, sid, desc, ids, comment=''):
         Set.__init__(self)
         if comment:
@@ -1261,6 +1355,12 @@ class SESET(SetSuper):
     """
     type = 'SESET'
 
+    @classmethod
+    def _init_from_empty(cls):
+        seid = 1
+        ids = [1, 2]
+        return SESET(seid, ids, comment='')
+
     def __init__(self, seid, ids, comment=''):
         SetSuper.__init__(self)
         if comment:
@@ -1333,6 +1433,14 @@ class SEBSET(SuperABCQSet):
     +--------+------+-----+------+-----+----+-----+----+
     """
     type = 'SEBSET'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        seid = 1
+        ids = [1, 2]
+        components = ['123', '456']
+        return SEBSET(seid, ids, components, comment='')
 
     def __init__(self, seid, ids, components, comment=''):
         SuperABCQSet.__init__(self, seid, ids, components, comment)
@@ -1354,6 +1462,14 @@ class SEBSET1(SuperABQSet1):
     +----------+------+-----+------+------+-----+-----+-----+-----+
     """
     type = 'SEBSET1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        seid = 1
+        ids = [1, 2]
+        components = '123'
+        return SEBSET1(seid, ids, components, comment='')
 
     def __init__(self, seid, ids, components, comment=''):
         SuperABQSet1.__init__(self, seid, ids, components, comment)
@@ -1361,6 +1477,14 @@ class SEBSET1(SuperABQSet1):
 
 class SECSET(SuperABCQSet):
     type = 'SECSET'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        seid = 1
+        ids = [1, 2]
+        components = ['123', '456']
+        return SECSET(seid, ids, components, comment='')
 
     def __init__(self, seid, ids, components, comment=''):
         SuperABCQSet.__init__(self, seid, ids, components, comment)
@@ -1380,6 +1504,14 @@ class SECSET1(SuperABQSet1):
     +----------+------+-----+------+------+-----+-----+-----+-----+
     """
     type = 'SECSET1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        seid = 1
+        ids = [1, 2]
+        components = '123'
+        return SECSET1(seid, ids, components, comment='')
 
     def __init__(self, seid, ids, components, comment=''):
         SuperABQSet1.__init__(self, seid, ids, components, comment)
@@ -1387,12 +1519,28 @@ class SECSET1(SuperABQSet1):
 
 class SEQSET(SuperABCQSet):
     type = 'SEQSET'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        seid = 1
+        ids = [1, 2]
+        components = ['123', '456']
+        return SEQSET(seid, ids, components, comment='')
 
     def __init__(self, seid, ids, components, comment=''):
         SuperABCQSet.__init__(self, seid, ids, components, comment)
 
 class SEQSET1(SuperABQSet1):
     type = 'SEQSET1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        seid = 1
+        ids = [1, 2]
+        components = '123'
+        return SEQSET1(seid, ids, components, comment='')
 
     def __init__(self, seid, ids, components, comment=''):
         SuperABQSet1.__init__(self, seid, ids, components, comment)
@@ -1461,6 +1609,16 @@ class RADSET(ABQSet1):
     +--------+----------+----------+----------+----------+----------+----------+----------+----------+
     """
     type = 'RADSET'
+
+    @classmethod
+    def _init_from_empty(cls):
+        cavities = [1, 2]
+        return RADSET(cavities, comment='')
+
+    def _finalize_hdf5(self, encoding):
+        """hdf5 helper function"""
+        if isinstance(self.cavities, np.ndarray):
+            self.cavities = self.cavities.tolist()
 
     def __init__(self, cavities, comment=''):
         """
@@ -1543,6 +1701,15 @@ class USET(Set):
     +------+-------+-----+------+-----+----+-----+----+
     """
     type = 'USET'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'SNAME'
+        ids = [1, 2]
+        components = ['123', '456']
+        return QSET(ids, components, comment='')
+
     def __init__(self, name, ids, components, comment=''):
         """
         Creates a USET card, which defines a degrees-of-freedom set.
@@ -1668,6 +1835,14 @@ class USET1(ABQSet1):
     +-------+-------+-----+------+------+-----+-----+-----+-----+
     """
     type = 'USET1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        name = 'SNAME'
+        ids = [1, 2]
+        components = '123'
+        return USET1(name, ids, components, comment='')
 
     def __init__(self, name, ids, components, comment=''):
         """
@@ -1680,7 +1855,7 @@ class USET1(ABQSet1):
             followed by the set name.)
         ids : List[int]
             the GRID/SPOINT ids
-        components : List[str]
+        components : str
             the degree of freedoms (e.g., '1', '123')
         comment : str; default=''
             a comment for the card

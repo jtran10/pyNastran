@@ -25,8 +25,11 @@ from pyNastran.bdf.cards.elements.solid import (CTETRA4, CPYRAM5, CPENTA6, CHEXA
                                                 CTETRA10, CPYRAM13, CPENTA15, CHEXA20,)
 from pyNastran.bdf.cards.thermal.thermal import CHBDYG, CONV, CHBDYP, CHBDYE, CONVM
 from pyNastran.bdf.cards.nodes import SPOINTs
-from pyNastran.op2.tables.geom.geom_common import GeomCommon
 from pyNastran.bdf.cards.elements.bush import CBUSH
+
+from pyNastran.op2.errors import MixedVersionCard
+from pyNastran.op2.tables.geom.geom_common import GeomCommon
+
 
 class GEOM2(GeomCommon):
     """defines methods for reading op2 elements"""
@@ -1170,12 +1173,12 @@ class GEOM2(GeomCommon):
         if self.is_nx:
             try:
                 n, elements = self._read_conv_nx(data, n)
-            except AssertionError:
+            except (AssertionError, MixedVersionCard):
                 n, elements = self._read_conv_msc(data, n0)
         else:
             try:
                 n, elements = self._read_conv_msc(data, n)
-            except AssertionError:
+            except (AssertionError, MixedVersionCard):
                 n, elements = self._read_conv_nx(data, n0)
 
         nelements = len(elements)
@@ -1210,13 +1213,13 @@ class GEOM2(GeomCommon):
         if self.is_nx:
             try:
                 n, elements = nx_read(data, n)
-            except AssertionError:
+            except (AssertionError, MixedVersionCard):
                 #raise
                 n, elements = msc_read(data, n0)
         else:
             try:
                 n, elements = msc_read(data, n)
-            except AssertionError:
+            except (AssertionError, MixedVersionCard):
                 #raise
                 n, elements = nx_read(data, n0)
 
@@ -1749,7 +1752,29 @@ class GEOM2(GeomCommon):
 # CTRIAFD - 95
 
     def _read_ctria6(self, data, n):
-        """common method for reading CTRIA6"""
+        """
+        common method for reading CTRIA6
+
+        CTRIA6(4801,48,327) # MSC 2005 - GEOM201
+        Word Name Type Description
+        1  EID    I Element identification number
+        2  PID    I Property identification number
+        3  G(6)   I Grid point identification numbers of connection points
+        9 THETA  RS Material property orientation angle or coordinate system identification number
+        10 ZOFFS RS Offset from the surface of grid points reference plane
+        11 T(3)  RS Membrane thickness of element at grid points
+
+        Record 90 -- CTRIA6(4801,48,327) # MSC 2005 - GEOM2
+        CTRIA6(4801,48,327)
+        Word Name Type Description
+        1 EID     I Element identification number
+        2 PID     I Property identification number
+        3 G(6)    I Grid point identification numbers of connection points
+        9 THETA  RS Material property orientation angle or coordinate system identification number
+        10 ZOFFS RS Offset from the surface of grid points reference plane
+        11 T(3)  RS Membrane thickness of element at grid points
+        14 TFLAG  I Relative thickness flag
+        """
         n = self._read_split_card(data, n,
                                   self._read_ctria6_current, self._read_ctria6_v2001,
                                   'CTRIA6', self.add_op2_element)
@@ -1758,9 +1783,20 @@ class GEOM2(GeomCommon):
     def _read_ctria6_current(self, data, n):
         """
         CTRIA6(4801,48,327) - the marker for Record 96
+
+        Record 90 -- CTRIA6(4801,48,327) # MSC 2005 - GEOM2
+        Word Name Type Description
+        1 EID     I Element identification number
+        2 PID     I Property identification number
+        3 G(6)    I Grid point identification numbers of connection points
+        9 THETA  RS Material property orientation angle or coordinate system identification number
+        10 ZOFFS RS Offset from the surface of grid points reference plane
+        11 T(3)  RS Membrane thickness of element at grid points
+        14 TFLAG  I Relative thickness flag
         """
         s = Struct(self._endian + b'8i 5f i')
         nelements = (len(data) - n) // 56  # 14*4
+        assert (len(data) - n) % 56 == 0
         elements = []
         for i in range(nelements):
             edata = data[n:n + 56]
@@ -1784,6 +1820,7 @@ class GEOM2(GeomCommon):
         """
         s = Struct(self._endian + b'8i 5f')
         nelements = (len(data) - n) // 52  # 13*4
+        assert (len(data) - n) % 52 == 0
         elements = []
         for i in range(nelements):
             edata = data[n:n + 52]
@@ -1875,8 +1912,8 @@ class GEOM2(GeomCommon):
             if self.is_debug_file:
                 self.binary_debug.write('  CVISC=%s\n' % str(out))
             #(eid, pid, n1, n2) = out
-            elem = CVISC.add_op2_data(out)
-            self.add_op2_element(elem)
+            element = CVISC.add_op2_data(out)
+            self.add_op2_element(element)
             n += 16
         self.card_count['CVISC'] = nelements
         return n

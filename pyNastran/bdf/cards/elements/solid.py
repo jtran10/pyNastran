@@ -91,13 +91,59 @@ def area_centroid(n1, n2, n3, n4):
     return area, centroid
 
 
+nnodes_map = {
+    'CTETRA' : (4, 10),
+    'CPENTA' : (6, 15),
+    'CPYRAM' : (5, 13),
+    'CHEXA' : (8, 20),
+}
 class SolidElement(Element):
     _field_map = {1: 'nid', 2:'pid'}
+    _properties = ['faces']
 
     def __init__(self):
         Element.__init__(self)
         self.nodes_ref = None
         self.pid_ref = None
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, eids):
+        """exports the elements in a vectorized way"""
+        nnodes = nnodes_map[cls.type]
+        comments = []
+        pids = []
+
+        element0 = model.elements[eids[0]]
+        nnodes0 = len(element0.nodes)
+        nnodes_high_map = {
+            4 : 10, 10 : 10, # CTETRA
+            5 : 13, 13 : 13, # CYRAM
+            6 : 15, 15 : 15, # CPENTA
+            8 : 20, 20 : 20, # CHEXA
+        }
+        nnodes_low_map = {
+            4 : 4, 10 : 4, # CTETRA
+            5 : 5, 13 : 5, # CYRAM
+            6 : 6, 15 : 6, # CPENTA
+            8 : 8, 20 : 8, # CHEXA
+        }
+        neids = len(eids)
+        nnodes = nnodes_high_map[nnodes0]
+        nnodes_low = nnodes_low_map[nnodes0]
+
+        nodes = np.zeros((neids, nnodes), dtype='int32')
+        for i, eid in enumerate(eids):
+            element = model.elements[eid]
+            #comments.append(element.comment)
+            pids.append(element.pid)
+            nodes[i, :len(element.nodes)] = [nid if nid is not None else 0 for nid in element.nodes]
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('eid', data=eids)
+        h5_file.create_dataset('pid', data=pids)
+
+        if nodes[:, nnodes_low:].max() == 0:
+            nodes = nodes[:, :nnodes_low]
+        h5_file.create_dataset('nodes', data=nodes)
 
     def _update_field_helper(self, n, value):
         if n - 3 < len(self.nodes):
@@ -208,6 +254,7 @@ class CHEXA8(SolidElement):
             property id (PSOLID, PLSOLID)
         nids : List[int]
             node ids; n=8
+
         """
         SolidElement.__init__(self)
         if comment:
@@ -230,6 +277,7 @@ class CHEXA8(SolidElement):
             a BDFCard object
         comment : str; default=''
             a comment for the card
+
         """
         eid = integer(card, 1, 'eid')
         pid = integer(card, 2, 'pid')
@@ -257,6 +305,7 @@ class CHEXA8(SolidElement):
             a list of fields defined in OP2 format
         comment : str; default=''
             a comment for the card
+
         """
         eid = data[0]
         pid = data[1]
@@ -272,6 +321,7 @@ class CHEXA8(SolidElement):
         ----------
         model : BDF()
             the BDF object
+
         """
         msg = ', which is required by CHEXA eid=%s' % self.eid
         self.nodes_ref = model.Nodes(self.nodes, msg=msg)

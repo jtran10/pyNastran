@@ -9,16 +9,25 @@ The preferences menu handles:
  - Clipping Max
 """
 from __future__ import print_function
+import os
 
+#import PySide
 from qtpy.QtCore import Qt
 from qtpy import QtGui
 from qtpy.QtWidgets import (
     QLabel, QPushButton, QGridLayout, QApplication, QHBoxLayout, QVBoxLayout,
     QColorDialog, QLineEdit, QCheckBox, QComboBox)
 
-from pyNastran.gui.utils.qt.pydialog import PyDialog, check_float
+from pyNastran.gui.utils.qt.pydialog import PyDialog
 from pyNastran.gui.utils.qt.qpush_button_color import QPushButtonColor
-
+from pyNastran.gui.utils.qt.dialogs import save_file_dialog
+from pyNastran.gui.utils.qt.checks.qlineedit import (
+    check_save_path, #check_path,
+    #check_int, check_positive_int_or_blank,
+    check_float,# check_float_ranged,
+    #check_name_str, check_name_length, check_format, check_format_str,
+)
+from pyNastran.gui.utils.wildcards import wildcard_csv
 
 class CuttingPlaneWindow(PyDialog):
     """
@@ -33,7 +42,7 @@ class CuttingPlaneWindow(PyDialog):
     |    Apply OK Cancel     |
     +------------------------+
     """
-    def __init__(self, data, win_parent=None):
+    def __init__(self, data, win_parent=None, show_tol=True):
         """
         Saves the data members from data and
         performs type checks
@@ -59,14 +68,14 @@ class CuttingPlaneWindow(PyDialog):
         self._zaxis_method = 0  # Global Z
 
         self.setWindowTitle('Cutting Plane')
-        self.create_widgets()
+        self.create_widgets(show_tol)
         self.create_layout()
         self.set_connections()
         self.on_font(self._default_font_size)
         #self.on_gradient_scale()
         #self.show()
 
-    def create_widgets(self):
+    def create_widgets(self, show_tol):
         """creates the display window"""
         # CORD2R
         #self.origin_label = QLabel("Origin:")
@@ -130,8 +139,17 @@ class CuttingPlaneWindow(PyDialog):
         self.zaxis_y_edit = QLineEdit('')
         self.zaxis_z_edit = QLineEdit('')
 
+        self.ytol_label = QLabel('Y Tolerance:')
+        self.zero_tol_label = QLabel('Zero Tolerance:')
+
         self.ytol_edit = QLineEdit('10.0')
         self.zero_tol_edit = QLineEdit('1e-5')
+
+        if not show_tol:
+            self.ytol_label.setVisible(False)
+            self.zero_tol_label.setVisible(False)
+            self.ytol_edit.setVisible(False)
+            self.zero_tol_edit.setVisible(False)
 
         self.p2_label = QLabel("P2:")
 
@@ -162,8 +180,6 @@ class CuttingPlaneWindow(PyDialog):
         self.x_label = QLabel('X')
         self.y_label = QLabel('Y')
         self.z_label = QLabel('Z')
-        self.ytol_label = QLabel('Y Tolerance:')
-        self.zero_tol_label = QLabel('Zero Tolerance:')
 
         self.location_label.setAlignment(Qt.AlignCenter)
         self.cid_label.setAlignment(Qt.AlignCenter)
@@ -189,6 +205,22 @@ class CuttingPlaneWindow(PyDialog):
         grid2.addWidget(self.method_pulldown, irow, 1)
         irow += 1
         self._add_grid_layout(grid2, irow, is_cord2r=False)
+
+        self.export_checkbox = QCheckBox()
+        self.csv_label = QLabel('CSV Filename:')
+        self.csv_edit = QLineEdit()
+        self.csv_button = QPushButton('Browse...')
+        self.export_checkbox.clicked.connect(self.on_export_checkbox)
+        self.csv_button.clicked.connect(self.on_browse_csv)
+        self.csv_label.setEnabled(False)
+        self.csv_edit.setEnabled(False)
+        self.csv_button.setEnabled(False)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.export_checkbox)
+        hbox.addWidget(self.csv_label)
+        hbox.addWidget(self.csv_edit)
+        hbox.addWidget(self.csv_button)
         #----------------------------------------------
 
         ok_cancel_box = QHBoxLayout()
@@ -211,6 +243,7 @@ class CuttingPlaneWindow(PyDialog):
         vbox.addLayout(grid)
         #vbox.addStretch()
         #vbox.addLayout(grid2)
+        vbox.addLayout(hbox)
         vbox.addStretch()
 
         #-----------------------
@@ -218,6 +251,25 @@ class CuttingPlaneWindow(PyDialog):
         self.on_method(0)
         self.on_zaxis_method(0)
         self.setLayout(vbox)
+
+    #def on_browse_csv(self):
+        #csv_filename = 'Cp.csv'
+
+    def on_export_checkbox(self):
+        is_checked = self.export_checkbox.isChecked()
+        self.csv_label.setEnabled(is_checked)
+        self.csv_edit.setEnabled(is_checked)
+        self.csv_button.setEnabled(is_checked)
+
+    def on_browse_csv(self):
+        """opens a file dialog"""
+        default_dirname = os.getcwd()
+        csv_filename, wildcard = save_file_dialog(
+            self, 'Select the Cutting Plane file name for Export',
+            default_dirname, wildcard_csv)
+        if not csv_filename:
+            return
+        self.csv_edit.setText(csv_filename)
 
     def _add_grid_layout(self, grid, irow, is_cord2r=True):
         j = -1
@@ -308,7 +360,7 @@ class CuttingPlaneWindow(PyDialog):
             p3_label_text = 'XZ Plane:'
         else:
             p1_label_text = 'Origin/P1:'
-            p2_label_text = 'P1:'
+            p2_label_text = 'P2:'
             p3_label_text = 'Z-Axis:'
 
         self.p1_label.setText(p1_label_text)
@@ -430,46 +482,38 @@ class CuttingPlaneWindow(PyDialog):
         p1 = [p1_x, p1_y, p1_z]
         p2 = [p2_x, p2_y, p2_z]
 
-        zaxis_method = str(self.zaxis_method_pulldown.currentText())
-        flag6, flag7, flag8 = True, True, True
-        if zaxis_method == 'Global Z':
-            zaxis = [0., 0., 1.]
-            zaxis_cid = 0
-        elif zaxis_method == 'Manual':
-            zaxis_x, flag6 = check_float(self.zaxis_x_edit)
-            zaxis_y, flag7 = check_float(self.zaxis_y_edit)
-            zaxis_z, flag8 = check_float(self.zaxis_z_edit)
-            zaxis = [zaxis_x, zaxis_y, zaxis_z]
-        elif zaxis_method == 'Camera Normal':
-            if self.win_parent is not None:
-                camera = self.win_parent.GetCamera()
-                zaxis = camera.GetViewPlaneNormal()
-            else:
-                zaxis = [1., 1., 1.]
-            zaxis_cid = 0
-        else:
-            raise NotImplementedError(zaxis_method)
+        flag6, flag7, flag8, zaxis_cid, zaxis = get_zaxis(
+            self.win_parent, # for camera
+            self.zaxis_method_pulldown,
+            self.zaxis_x_edit, self.zaxis_y_edit, self.zaxis_z_edit)
         #print('zaxis =', zaxis)
 
         method = self.method_pulldown.currentText()
-        assert method in self.methods, 'method=%r' % method
+        assert method in self.methods, 'method=%r' % method_check_color
         flag9 = True
 
         ytol, flag10 = check_float(self.ytol_edit)
         zero_tol, flag11 = check_float(self.zero_tol_edit)
 
+        csv_filename = None
+        flag12 = True
+        if self.export_checkbox.isChecked():
+            csv_filename, flag12 = check_save_path(self.csv_edit)
+
+
         flags = [flag0, flag1, flag2, flag3, flag4, flag5,
                  flag6, flag7, flag8,
-                 flag9, flag10, flag11]
+                 flag9, flag10, flag11, flag12]
         if all(flags):
             self.out_data['method'] = method
             self.out_data['p1'] = [p1_cid, p1]
             self.out_data['p2'] = [p2_cid, p2]
-            self.out_data['zaxis'] = [zaxis_method, zaxis_cid, zaxis]
+            self.out_data['zaxis'] = [zaxis_cid, zaxis]
             self.out_data['ytol'] = ytol
             self.out_data['zero_tol'] = zero_tol
             self.out_data['plane_color'] = self.plane_color_float
             self.out_data['plane_opacity'] = 0.6
+            self.out_data['csv_filename'] = csv_filename
             self.out_data['clicked_ok'] = True
             return True
         return False
@@ -490,6 +534,29 @@ class CuttingPlaneWindow(PyDialog):
     def on_cancel(self):
         self.out_data['close'] = True
         self.close()
+
+
+def get_zaxis(win_parent, zaxis_method_pulldown, zaxis_x_edit, zaxis_y_edit, zaxis_z_edit):
+    zaxis_method = str(zaxis_method_pulldown.currentText())
+    flag1, flag2, flag3 = True, True, True
+    if zaxis_method == 'Global Z':
+        zaxis = [0., 0., 1.]
+        zaxis_cid = 0
+    elif zaxis_method == 'Manual':
+        zaxis_x, flag1 = check_float(zaxis_x_edit)
+        zaxis_y, flag2 = check_float(zaxis_y_edit)
+        zaxis_z, flag3 = check_float(zaxis_z_edit)
+        zaxis = [zaxis_x, zaxis_y, zaxis_z]
+    elif zaxis_method == 'Camera Normal':
+        if win_parent is not None:
+            camera = win_parent.GetCamera()
+            zaxis = camera.GetViewPlaneNormal()
+        else:
+            zaxis = [1., 1., 1.]
+        zaxis_cid = 0
+    else:
+        raise NotImplementedError(zaxis_method)
+    return flag1, flag2, flag3, zaxis_cid, zaxis
 
 def _check_color(color_float):
     assert len(color_float) == 3, color_float
@@ -525,7 +592,7 @@ def main():
         'name' : 'main',
 
     }
-    main_window = CuttingPlaneWindow(data)
+    main_window = CuttingPlaneWindow(data, show_tol=True)
     main_window.show()
     # Enter the main loop
     app.exec_()

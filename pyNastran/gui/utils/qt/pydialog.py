@@ -4,13 +4,28 @@ defines:
 """
 from __future__ import print_function
 
+from pyNastran.gui.qt_version import qt_version
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
-from qtpy.QtWidgets import QDialog
+from qtpy.QtWidgets import QDialog, QComboBox
 
 from pyNastran.bdf.utils import (
     parse_patran_syntax, parse_patran_syntax_dict)
 
+from pyNastran.gui.utils.qt.checks.qlineedit import (
+    check_path, check_save_path,
+    check_int, check_positive_int_or_blank,
+    check_float, check_float_ranged,
+    check_name_str, check_name_length, check_format, check_format_str,
+)
+
+def make_font(font_size, is_bold=False):
+    """creates a QFont"""
+    font = QFont()
+    font.setPointSize(font_size)
+    if is_bold:
+        font.setBold(is_bold)
+    return font
 
 class PyDialog(QDialog):
     """
@@ -35,8 +50,7 @@ class PyDialog(QDialog):
         if self.font_size == font_size:
             return
         self.font_size = font_size
-        font = QFont()
-        font.setPointSize(font_size)
+        font = make_font(font_size, is_bold=False)
         self.setFont(font)
 
     def closeEvent(self, event):
@@ -46,23 +60,6 @@ class PyDialog(QDialog):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             self.on_cancel()
-
-def check_positive_int_or_blank(cell):
-    text = str(cell.text()).strip()
-    if len(text) == 0:
-        return None, True
-    try:
-        value = int(text)
-    except ValueError:
-        cell.setStyleSheet("QLineEdit{background: red;}")
-        return None, False
-
-    if value < 1:
-        cell.setStyleSheet("QLineEdit{background: red;}")
-        return None, False
-
-    cell.setStyleSheet("QLineEdit{background: white;}")
-    return value, True
 
 def check_patran_syntax(cell, pound=None):
     text = str(cell.text())
@@ -87,110 +84,37 @@ def check_patran_syntax_dict(cell, pound=None):
         cell.setToolTip(str(error))
         return None, False
 
-def check_int(cell):
-    text = cell.text()
-    try:
-        value = int(text)
-        cell.setStyleSheet("QLineEdit{background: white;}")
-        return value, True
-    except ValueError:
-        cell.setStyleSheet("QLineEdit{background: red;}")
-        return None, False
-
-#def check_float(cell):
-    #text = cell.text()
-    #try:
-        #value = eval_float_from_string(text)
-        #cell.setStyleSheet("QLineEdit{background: white;}")
-        #return value, True
-    #except ValueError:
-        #cell.setStyleSheet("QLineEdit{background: red;}")
-        #return None, False
-
-
-def check_float(cell):
-    text = cell.text()
-    try:
-        value = float(text)
-        cell.setStyleSheet("QLineEdit{background: white;}")
-        return value, True
-    except ValueError:
-        cell.setStyleSheet("QLineEdit{background: red;}")
-        return None, False
-
-def check_format(cell):
+def make_combo_box(items, initial_value):
     """
-    Checks a QLineEdit string formatter
+    Makes a QComboBox, sets the items, and sets an initial value.
 
     Parameters
     ----------
-    cell : QLineEdit
-        a QLineEdit containing a string formatter like:
-        {'%s', '%i', '%f', '%g', '%.3f', '%e'}
+    items : List[str]
+        the values of the combo box
+    initial_value : str
+        the value to set the combo box to
 
     Returns
     -------
-    text : str / None
-        str : the validated text of the QLineEdit
-        None : the format is invalid
-    is_valid : bool
-        The str/None flag to indicate if the string formatter is valid
+    combo_box : QComboBox
+        the pulldown
     """
-    text = str(cell.text())
-    text2, is_valid = check_format_str(text)
+    assert initial_value in items, 'initial_value=%r items=%s' % (initial_value, items)
+    combo_box = QComboBox()
+    combo_box.addItems(items)
+    set_combo_box_text(combo_box, initial_value)
 
-    if is_valid:
-        cell.setStyleSheet("QLineEdit{background: white;}")
-        return text2, True
-    cell.setStyleSheet("QLineEdit{background: red;}")
-    return None, False
+    if initial_value not in items:
+        msg = 'initial_value=%r is not supported in %s' % (initial_value, items)
+        raise RuntimeError(msg)
+    return combo_box
 
-def check_format_str(text):
-    """
-    Checks a QLineEdit string formatter
-
-    Parameters
-    ----------
-    text : str
-        a QLineEdit containing a string formatter like:
-        {'%s', '%i', '%f', '%g', '%.3f', '%e'}
-
-    Returns
-    -------
-    text : str / None
-        str : the validated text of the QLineEdit
-        None : the format is invalid
-    is_valid : bool
-        The str/None flag to indicate if the string formatter is valid
-    """
-    text = text.strip()
-    is_valid = True
-
-    # basic length checks
-    if len(text) < 2:
-        is_valid = False
-    elif 's' in text.lower():
-        is_valid = False
-    elif '%' not in text[0]:
-        is_valid = False
-    elif text[-1].lower() not in ['g', 'f', 'i', 'e']:
-        is_valid = False
-
-    # the float formatter handles ints/floats?
-    try:
-        text % 1
-        text % .2
-        text % 1e3
-        text % -5.
-        text % -5
-    except ValueError:
-        is_valid = False
-
-    # the float formatter isn't supposed to handle strings?
-    # doesn't this break %g?
-    try:
-        text % 's'
-        is_valid = False
-    except TypeError:
-        pass
-    return text, is_valid
+def set_combo_box_text(combo_box, value):
+    """sets the combo_box text"""
+    if qt_version == 'pyside':
+        items = [combo_box.itemText(i) for i in range(combo_box.count())]
+        j = items.index(value)
+        combo_box.setCurrentIndex(j)
+    else:
+        combo_box.setCurrentText(value)

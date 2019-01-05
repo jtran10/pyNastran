@@ -7,7 +7,7 @@ from __future__ import division, unicode_literals, print_function
 # we're intentionally putting this here to validate the imports
 # before doing lots of work
 from pyNastran.gui.arg_handling import get_inputs
-get_inputs()
+get_inputs(print_inputs=True)
 
 import sys
 import ctypes
@@ -101,7 +101,7 @@ def cmd_line():
     QApplication.setOrganizationDomain(pyNastran.__website__)
     QApplication.setApplicationName("pyNastran")
     QApplication.setApplicationVersion(pyNastran.__version__)
-    inputs = get_inputs()
+    inputs = get_inputs(print_inputs=False)
     #inputs['app'] = app
     MainWindow(inputs)
     app.exec_()

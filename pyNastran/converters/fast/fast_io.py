@@ -24,6 +24,7 @@ class FastIO(object):
         return data
 
     def load_fast_geometry(self, fgrid_filename, name='main', plot=True):
+        model_name = name
         skip_reading = self.gui._remove_old_geometry(fgrid_filename)
         if skip_reading:
             return
@@ -105,11 +106,9 @@ class FastIO(object):
 
         grid.SetPoints(points)
         grid.Modified()
-        if hasattr(grid, 'Update'):  # pragma: no cover
-            grid.Update()
 
         # regions/loads
-        self.gui.scalarBar.Modified()
+        self.gui.scalar_bar_actor.Modified()
 
         cases = OrderedDict()
         #cases = self.result_cases
@@ -120,7 +119,7 @@ class FastIO(object):
             results=True)
         self.gui.node_ids = node_ids
         self.gui.element_ids = element_ids
-        self.gui._finish_results_io2(form, cases)
+        self.gui._finish_results_io2(model_name, form, cases)
 
     def clear_fast(self):
         pass
@@ -142,7 +141,7 @@ class FastIO(object):
     def _fill_fast_case(self, form, cases, model,
                         nnodes, nelements, dimension_flag,
                         results=False):
-        self.gui.scalarBar.VisibilityOff()
+        self.gui.scalar_bar_actor.VisibilityOff()
 
         icase = 0
         geometry_form = [
@@ -191,7 +190,7 @@ class FastIO(object):
                     #except KeyError:
                         #name = '???'
                     #self.log.info('BC=%s Regions=%s name=%r' % (bcnum, regions, name))
-                #self.scalarBar.VisibilityOn()
+                #self.scalar_bar_actor.VisibilityOn()
 
             ##==============================
             #res_id = 2
@@ -199,7 +198,7 @@ class FastIO(object):
                 #for key, load in loads.items():
                     #cases[(res_id, icase, key, 1, 'node', '%.3f')] = load
                     #icase += 1
-                #self.scalarBar.VisibilityOn()
+                #self.scalar_bar_actor.VisibilityOn()
 
         form.append(('Geometry', None, geometry_form))
         return cases, nids, eids

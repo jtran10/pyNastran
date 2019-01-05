@@ -65,6 +65,14 @@ class SUPORT1(Constraint):
     +---------+-----+-----+----+-----+----+-----+----+
     """
     type = 'SUPORT1'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        conid = 1
+        nodes = [1]
+        Cs = ['123']
+        return SUPORT1(conid, nodes, Cs, comment='')
 
     def __init__(self, conid, nodes, Cs, comment=''):
         """
@@ -215,6 +223,13 @@ class SUPORT(Constraint):
     +---------+-----+-----+-----+-----+-----+-----+-----+----+
     """
     type = 'SUPORT'
+    _properties = ['node_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        nodes = [1, 2]
+        components = ['123', '456']
+        return SUPORT(nodes, components, comment='')
 
     def __init__(self, nodes, Cs, comment=''):
         """
@@ -347,6 +362,12 @@ class SUPORT(Constraint):
 class SESUP(SUPORT):
     type = 'SESUP'
 
+    @classmethod
+    def _init_from_empty(cls):
+        nodes= [1, 2]
+        Cs = ['1', '2']
+        return SESUP(nodes, Cs, comment='')
+
     def __init__(self, nodes, Cs, comment=''):
         SUPORT.__init__(self, nodes, Cs, comment='')
 
@@ -370,6 +391,16 @@ class MPC(Constraint):
     +-----+-----+----+----+-----+----+----+----+-----+
     """
     type = 'MPC'
+    #'constraints', 'enforced', 'gids_ref', 'gids'
+    _properties = ['node_ids', ]
+
+    @classmethod
+    def _init_from_empty(cls):
+        conid = 1
+        nodes = [1]
+        components = ['1']
+        coefficients = [1.]
+        return MPC(conid, nodes, components, coefficients)
 
     def __init__(self, conid, nodes, components, coefficients, comment=''):
         """
@@ -407,13 +438,15 @@ class MPC(Constraint):
 
     def object_attributes(self, mode='public', keys_to_skip=None):
         """.. seealso:: `pyNastran.utils.object_attributes(...)`"""
+        if keys_to_skip is None:
+            keys_to_skip = []
         my_keys_to_skip = ['gids_ref', 'gids', 'constraints', 'enforced']
-        return Constraint.object_attributes(mode=mode, keys_to_skip=keys_to_skip+my_keys_to_skip)
+        return super(Constraint, self).object_attributes(mode=mode, keys_to_skip=keys_to_skip+my_keys_to_skip)
 
     def object_methods(self, mode='public', keys_to_skip=None):
         """.. seealso:: `pyNastran.utils.object_methods(...)`"""
         my_keys_to_skip = ['gids_ref', 'gids', 'constraints', 'enforced']
-        return Constraint.object_methods(mode=mode, keys_to_skip=keys_to_skip+my_keys_to_skip)
+        return super(Constraint, self).object_methods(mode=mode, keys_to_skip=keys_to_skip+my_keys_to_skip)
 
     def validate(self):
         assert isinstance(self.nodes, list), type(self.nodes)
@@ -512,7 +545,6 @@ class MPC(Constraint):
     def enforced(self, enforced):
         self.deprecated('enforced', 'coefficients', '1.2')
         self.coefficients = enforced
-
 
     @property
     def gids_ref(self):
@@ -640,6 +672,16 @@ class SPC(Constraint):
      +-----+-----+----+----+------+----+----+----+
     """
     type = 'SPC'
+    _properties = ['node_ids', 'constraints', 'gids_ref', 'gids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        conid = 1
+        nodes = [1, 2]
+        components = ['123', '456']
+        enforced = [0., 0.]
+        return SPC(conid, nodes, components, enforced, comment='')
+
     def __init__(self, conid, nodes, components, enforced, comment=''):
         """
         Creates an SPC card, which defines the degree of freedoms to be
@@ -674,11 +716,15 @@ class SPC(Constraint):
     def object_attributes(self, mode='public', keys_to_skip=None):
         """.. seealso:: `pyNastran.utils.object_attributes(...)`"""
         my_keys_to_skip = ['gids_ref', 'gids']
+        if keys_to_skip is None:
+            keys_to_skip = []
         return Constraint.object_attributes(self, mode=mode, keys_to_skip=keys_to_skip+my_keys_to_skip)
 
     def object_methods(self, mode='public', keys_to_skip=None):
         """.. seealso:: `pyNastran.utils.object_methods(...)`"""
         my_keys_to_skip = ['gids_ref', 'gids']
+        if keys_to_skip is None:
+            keys_to_skip = []
         return Constraint.object_methods(self, mode=mode, keys_to_skip=keys_to_skip+my_keys_to_skip)
 
     def validate(self):
@@ -836,6 +882,14 @@ class SPC(Constraint):
 class GMSPC(Constraint):
     type = 'GMSPC'
 
+    @classmethod
+    def _init_from_empty(cls):
+        conid = 1
+        component = 2
+        entity = 3
+        entity_id = 4
+        return GMSPC(conid, component, entity, entity_id, comment='')
+
     def __init__(self, conid, component, entity, entity_id, comment=''):
         Constraint.__init__(self)
         if comment:
@@ -904,6 +958,15 @@ class SPCAX(Constraint):
     +-------+-----+-----+-----+----+-----+
     """
     type = 'SPCAX'
+
+    @classmethod
+    def _init_from_empty(cls):
+        conid = 1
+        ringax = 2
+        hid = 3
+        component = 4
+        enforced = 0.
+        return SPCAX(conid, ringax, hid, component, enforced, comment='')
 
     def __init__(self, conid, ringax, hid, component, enforced, comment=''):
         """
@@ -1011,6 +1074,14 @@ class SPC1(Constraint):
       +------+-----+-------+----+------+----+
     """
     type = 'SPC1'
+    _properties = ['node_ids'] # 'constraints',
+
+    @classmethod
+    def _init_from_empty(cls):
+        conid = 1
+        components = '1'
+        nodes = [1]
+        return SPC1(conid, components, nodes, comment='')
 
     def __init__(self, conid, components, nodes, comment=''):
         """
@@ -1156,6 +1227,12 @@ class SPCOFF(Constraint):
     """
     type = 'SPCOFF'
 
+    @classmethod
+    def _init_from_empty(cls):
+        nodes= [1, 2]
+        Cs = ['1', '2']
+        return SPCOFF(nodes, Cs, comment='')
+
     def __init__(self, nodes, components, comment=''):
         Constraint.__init__(self)
         if comment:
@@ -1293,6 +1370,12 @@ class SPCOFF(Constraint):
 class SPCOFF1(Constraint):
     type = 'SPCOFF1'
 
+    @classmethod
+    def _init_from_empty(cls):
+        components = '1'
+        nodes= [1, 2]
+        return SPCOFF1(components, nodes, comment='')
+
     def __init__(self, components, nodes, comment=''):
         Constraint.__init__(self)
         if comment:
@@ -1425,6 +1508,14 @@ class SPCADD(ConstraintAdd):
     +--------+----+----+-----+
     """
     type = 'SPCADD'
+    _properties = ['ids', 'spc_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        conid = 1
+        sets = [1, 2]
+        return SPCADD(conid, sets, comment='')
+
     def __init__(self, conid, sets, comment=''):
         ConstraintAdd.__init__(self)
         if comment:
@@ -1463,7 +1554,7 @@ class SPCADD(ConstraintAdd):
 
         """
         conid = data[0]
-        sets = list(data[1:-1])
+        sets = data[1:].tolist()
         return SPCADD(conid, sets, comment=comment)
 
     @property
@@ -1543,6 +1634,13 @@ class MPCADD(ConstraintAdd):
     +--------+----+----+-----+
     """
     type = 'MPCADD'
+    _properties = ['ids', 'mpc_ids']
+
+    @classmethod
+    def _init_from_empty(cls):
+        conid = 1
+        sets = [1, 2]
+        return MPCADD(conid, sets, comment='')
 
     def __init__(self, conid, sets, comment=''):
         ConstraintAdd.__init__(self)
@@ -1583,7 +1681,7 @@ class MPCADD(ConstraintAdd):
 
         """
         conid = data[0]
-        sets = list(data[1:-1])
+        sets = data[1:].tolist()
         return MPCADD(conid, sets, comment=comment)
 
     @property

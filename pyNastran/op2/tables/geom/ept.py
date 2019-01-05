@@ -323,6 +323,7 @@ class EPT(GeomCommon):
         """
         PBARL(9102,91,52) - the marker for Record 12
         TODO: buggy
+        It's possible to have a PBARL and a PBAR at the same time.
         """
         valid_types = {
             "ROD": 1,
@@ -353,6 +354,7 @@ class EPT(GeomCommon):
         #nentries = (len(data) - n) // ntotal
         #print(self.show_ndata(80))
         ndata = len(data)
+
         while ndata - n > ntotal:
             edata = data[n:n+28]
             n += 28
@@ -364,8 +366,9 @@ class EPT(GeomCommon):
             data_in = [pid, mid, group, beam_type, value]
             #self.log.debug("  pid=%s mid=%s group=%r beam_type=%r value=%s" % (
                 #pid, mid, group, beam_type, value))
-            if pid > 100000000:
+            if pid > 100000000 or pid < 1:
                 raise RuntimeError('bad parsing...')
+
             expected_length = valid_types[beam_type]
             iformat = b(self._uendian + '%if' % expected_length)
 
@@ -380,9 +383,20 @@ class EPT(GeomCommon):
             #prin( "len(out) = ",len(out)))
             #print("PBARL = %s" % data_in)
             prop = PBARL.add_op2_data(data_in)  # last value is nsm
+            pid = prop.pid
+            if pid in self.properties:
+                #self.log.debug("removing:\n%s" % self.properties[pid])
+                self._type_to_id_map['PBAR'].remove(pid)
+                del self.properties[pid]
             self._add_op2_property(prop)
+            #self.properties[pid] = prop
+            #print(prop.get_stats())
             #print(self.show_data(data[n-8:-100]))
-            break
+            n += 4  # TODO: not entirely sure why this is here...
+
+        if len(self._type_to_id_map['PBAR']) == 0 and 'PBAR' in self.card_count:
+            del self._type_to_id_map['PBAR']
+            del self.card_count['PBAR']
         self.increase_card_count('PBARL')
         #assert len(data) == n
         return n
@@ -1402,13 +1416,20 @@ class EPT(GeomCommon):
                 self.binary_debug.write('  PSHELL=%s\n' % str(out))
             prop = PSHELL.add_op2_data(out)
 
+            if pid in self.properties:
+                # this is a fake PSHELL
+                propi = self.properties[pid]
+                assert propi.type in ['PCOMP'], propi.get_stats()
+                nproperties -= 1
+                continue
+
             if max(pid, mid1, mid2, mid3, mid4) > 1e8:
-                #print("PSHELL = ",out)
                 self.big_properties[pid] = prop
             else:
                 self._add_op2_property(prop)
             n += ntotal
-        self.card_count['PSHELL'] = nproperties
+        if nproperties:
+            self.card_count['PSHELL'] = nproperties
         return n
 
     def _read_psolid(self, data, n):

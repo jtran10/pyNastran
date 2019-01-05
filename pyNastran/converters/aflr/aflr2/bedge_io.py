@@ -28,6 +28,7 @@ class BEdge_IO(object):
         return data
 
     def load_bedge_geometry(self, bedge_filename, name='main', plot=True):
+        model_name = name
         #skip_reading = self.remove_old_openfoam_geometry(openfoam_filename)
         #if skip_reading:
         #    return
@@ -85,14 +86,11 @@ class BEdge_IO(object):
         alt_grid.SetPoints(points)
         grid.SetPoints(points)
         grid.Modified()
-        if hasattr(grid, 'Update'):  # pragma: no cover
-            grid.Update()
-        #print("updated grid")
 
         # loadBedgeResults - regions/loads
         #self.TurnTextOn()
-        self.gui.scalarBar.VisibilityOn()
-        self.gui.scalarBar.Modified()
+        self.gui.scalar_bar_actor.VisibilityOn()
+        self.gui.scalar_bar_actor.Modified()
 
         self.gui.isubcase_name_map = {1: ['AFLR BEDGE', '']}
         cases = OrderedDict()
@@ -104,7 +102,7 @@ class BEdge_IO(object):
         self.gui.node_ids = node_ids
         self.gui.element_ids = element_ids
         if plot:
-            self.gui._finish_results_io2(form, cases)
+            self.gui._finish_results_io2(model_name, form, cases)
 
     def clear_bedge(self):
         pass

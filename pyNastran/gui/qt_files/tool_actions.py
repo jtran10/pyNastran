@@ -426,7 +426,7 @@ class ToolActions(object):
         if csv_filename in [None, False]:
             title = 'Load User Geometry'
             csv_filename = self.gui._create_load_file_dialog(
-                self.gui.wildcard_delimited, title)[1]
+                self.gui.wildcard_delimited + ';;STL (*.stl)', title)[1]
             if not csv_filename:
                 return
 
@@ -608,9 +608,9 @@ class ToolActions(object):
             check_path(csv_points_filename, 'csv_points_filename')
             # read input file
             try:
-                user_points = np.loadtxt(csv_points_filename, delimiter=',')
+                user_points = np.loadtxt(csv_points_filename, comments='#', delimiter=',')
             except ValueError:
-                user_points = loadtxt_nice(csv_points_filename, delimiter=',')
+                user_points = loadtxt_nice(csv_points_filename, comments='#', delimiter=',')
                 # can't handle leading spaces?
                 #raise
         except ValueError as error:
@@ -692,15 +692,9 @@ class ToolActions(object):
         quad_mapper = vtk.vtkDataSetMapper()
         if name in self.gui.geometry_actors:
             alt_geometry_actor = self.gui.geometry_actors[name]
-            if self.gui.vtk_version[0] >= 6:
-                alt_geometry_actor.GetMapper().SetInputData(grid)
-            else:
-                alt_geometry_actor.GetMapper().SetInput(grid)
+            alt_geometry_actor.GetMapper().SetInputData(grid)
         else:
-            if self.gui.vtk_version[0] >= 6:
-                quad_mapper.SetInputData(grid)
-            else:
-                quad_mapper.SetInput(grid)
+            quad_mapper.SetInputData(grid)
             alt_geometry_actor = vtk.vtkActor()
             if not is_pickable:
                 alt_geometry_actor.PickableOff()
@@ -755,8 +749,6 @@ class ToolActions(object):
             alt_geometry_actor.VisibilityOff()
 
         #print('current_actors = ', self.geometry_actors.keys())
-        if hasattr(grid, 'Update'):
-            grid.Update()
         alt_geometry_actor.Modified()
 
     #---------------------------------------------------------------------------

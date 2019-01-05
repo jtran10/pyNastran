@@ -43,7 +43,9 @@ class SafeXrefMesh(XrefMesh):
                              xref_aero=True,
                              xref_sets=True,
                              xref_optimization=True,
-                             debug=True):
+                             create_superelement_geometry=False,
+                             debug=True,
+                             word=''):
         """
         Performs cross referencing in a way that skips data gracefully.
 
@@ -51,7 +53,7 @@ class SafeXrefMesh(XrefMesh):
         """
         if not xref:
             return
-        self.log.debug("Safe Cross Referencing...")
+        self.log.debug("Safe Cross Referencing%s..." % word)
         if xref_nodes:
             self._cross_reference_nodes()
             self._cross_reference_coordinates()
@@ -72,14 +74,25 @@ class SafeXrefMesh(XrefMesh):
         if xref_constraints:
             self._safe_cross_reference_constraints()
         if xref_loads:
-            self._safe_cross_reference_loads(debug=debug)
+            self._safe_cross_reference_loads()
         if xref_sets:
             self._cross_reference_sets()
         if xref_optimization:
             self._cross_reference_optimization()
         if xref_nodes_with_elements:
             self._cross_reference_nodes_with_elements()
+        self._safe_cross_reference_superelements(create_superelement_geometry)
+
         self.pop_xref_errors()
+        for super_id, superelement in sorted(self.superelement_models.items()):
+            superelement.safe_cross_reference(
+                xref=xref, xref_nodes=xref_nodes, xref_elements=xref_elements,
+                xref_nodes_with_elements=xref_nodes_with_elements,
+                xref_properties=xref_properties, xref_masses=xref_masses,
+                xref_materials=xref_materials, xref_loads=xref_loads,
+                xref_constraints=xref_constraints, xref_aero=xref_aero,
+                xref_sets=xref_sets, xref_optimization=xref_optimization,
+                word=' (Superelement %i)' % super_id)
 
     def _safe_cross_reference_constraints(self):
         # type: () -> None
@@ -253,12 +266,21 @@ class SafeXrefMesh(XrefMesh):
             for key, eids_pids in sorted(xref_errors.items()):
                 eids = [eid_pid[0] for eid_pid in eids_pids]
                 eids.sort()
-                pids = np.unique([eid_pid[1] for eid_pid in eids_pids]).tolist()
+                pids = [eid_pid[1] for eid_pid in eids_pids]
+                try:
+                    upids = np.unique(pids).tolist()
+                except TypeError:
+                    print(msg)
+                    print('key = %s' % key)
+                    print(' - keys   = %s' % eids)
+                    print(' - values = %s' % pids)
+                    print("Make sure you don't have Nones in the values")
+                    raise
                 msg += 'missing %r for %s = %s\n' % (key, elements_word, eids)
-                msg += '%s = %s\n' % (key, pids)
+                msg += '%s = %s\n' % (key, upids)
             self.log.warning(msg.rstrip())
 
-    def _safe_cross_reference_loads(self, debug=True):
+    def _safe_cross_reference_loads(self):
         # type: (bool) -> None
         """
         Links the loads to nodes, coordinate systems, and other loads.
@@ -486,7 +508,7 @@ class SafeXrefMesh(XrefMesh):
             the referencing value (e.g., an TLOAD1 eid references a TABLED1)
         """
         try:
-            tabled_ref = self.TableD(tabled_id)
+            tabled_ref = self.TableD(tabled_id, msg=msg)
         except KeyError:
             tabled_ref = None
             xref_errors['tabled'].append((ref_id, tabled_id))
@@ -500,7 +522,7 @@ class SafeXrefMesh(XrefMesh):
             the referencing value (e.g., an MATT1 eid references a TABLEH1)
         """
         try:
-            tableh_ref = model.TableH(tableh_id)
+            tableh_ref = self.TableH(tableh_id, msg=msg)
         except KeyError:
             tableh_ref = None
             xref_errors['tableh'].append((ref_id, tableh_id))

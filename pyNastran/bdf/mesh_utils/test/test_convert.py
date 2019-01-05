@@ -127,22 +127,54 @@ class TestConvert(unittest.TestCase):
         os.remove(bdf_filename_out)
         os.remove(bdf_filename_out2)
 
+    def test_convert_null(self):
+        """null conversions to verify any conversion is undone consistently"""
+        pairs = [
+            ['m', 'kg', 's'],
+            ['mm', 'kg', 's'],
+            ['mm', 'g', 's'],
+            ['mm', 'Mg', 's'],
+            ['ft', 'lbm', 's'],
+            ['in', 'lbm', 's'],
+            ['cm', 'kg', 's'],
+        ]
+        for pair in pairs:
+            xyz_scale, mass_scale, time_scale, weight_scale, gravity_scale = get_scale_factors(
+                pair, pair, log)
+            assert xyz_scale == 1., xyz_scale
+            assert mass_scale == 1., mass_scale
+            assert time_scale == 1., time_scale
+            assert weight_scale == 1., weight_scale
+            assert gravity_scale == 1., gravity_scale
+
+        invalid_pairs = [
+            ['cm', 'ton', 's'],
+        ]
+        pair0 = ['m', 'kg', 's']
+        for pair in invalid_pairs:
+            with self.assertRaises(NotImplementedError):
+                xyz_scale, mass_scale, time_scale, weight_scale, gravity_scale = get_scale_factors(
+                    pair, pair0, log)
+            with self.assertRaises(NotImplementedError):
+                xyz_scale, mass_scale, time_scale, weight_scale, gravity_scale = get_scale_factors(
+                    pair0, pair, log)
+
     def test_convert_units(self):
         """tests various conversions"""
         # from -> to
         xyz_scale, mass_scale, time_scale, weight_scale, gravity_scale = get_scale_factors(
-            ['in', 'lbm', 's'], ['ft', 'lbm', 's'])
+            ['in', 'lbm', 's'], ['ft', 'lbm', 's'], log)
         assert xyz_scale == 1./12.
         assert mass_scale == 1.
         assert time_scale == 1.
         assert weight_scale == 1., weight_scale
         assert gravity_scale == 1./12., gravity_scale
-        wtmass = 1. / (32.2 * 12.)
-        wtmass_expected = 1. / (32.2)
+        wtmass = 1. / (32.174 * 12.)
+        wtmass_expected = 1. / (32.174)
         assert allclose(wtmass/gravity_scale, wtmass_expected), 'wtmass=%s wtmass_expected=%s' % (wtmass, wtmass_expected)
 
         xyz_scale, mass_scale, time_scale, weight_scale, gravity_scale = get_scale_factors(
-            ['mm', 'Mg', 's'], ['m', 'kg', 's'])
+            ['mm', 'Mg', 's'], ['m', 'kg', 's'], log)
         assert xyz_scale == 1./1000.
         assert mass_scale == 1000.
         assert time_scale == 1.
@@ -150,15 +182,39 @@ class TestConvert(unittest.TestCase):
         assert gravity_scale == 1.
 
         xyz_scale, mass_scale, time_scale, weight_scale, gravity_scale = get_scale_factors(
-            ['ft', 'lbm', 's'], ['m', 'kg', 's'])
+            ['ft', 'lbm', 's'], ['m', 'kg', 's'], log)
         assert xyz_scale == 0.3048
         assert mass_scale == 0.45359237, mass_scale
         assert time_scale == 1.
         assert allclose(weight_scale, 4.4482216526), weight_scale
-        assert allclose(gravity_scale, 1/32.2), 'gravity_scale=%s 1/expected=%s' % (gravity_scale, 1/(32.2))
-        wtmass = 1. / (32.2)
+        assert allclose(gravity_scale, 1/32.174), 'gravity_scale=%s 1/expected=%s' % (gravity_scale, 1/(32.2))
+        wtmass = 1. / (32.174)
         wtmass_expected = 1.
         assert allclose(wtmass/gravity_scale, wtmass_expected), 'wtmass=%s wtmass_expected=%s' % (wtmass/gravity_scale, wtmass_expected)
+
+        # both are consistent systems, so wtmass=1.0
+        xyz_scale, mass_scale, time_scale, weight_scale, gravity_scale = get_scale_factors(
+            ['in', 'slinch', 's'], ['in', 'slug', 's'], log)
+        assert xyz_scale == 1.
+        assert mass_scale == 12., mass_scale
+        assert time_scale == 1.
+        assert np.allclose(weight_scale, 1.), weight_scale
+        assert gravity_scale == 1., gravity_scale
+        wtmass = 1.
+        wtmass_expected = 1.
+        assert allclose(wtmass/gravity_scale, wtmass_expected), 'wtmass=%s wtmass_expected=%s' % (wtmass, wtmass_expected)
+
+        # both are consistent systems, so wtmass=1.0
+        xyz_scale, mass_scale, time_scale, weight_scale, gravity_scale = get_scale_factors(
+            ['ft', 'lbm', 's'], ['ft', 'slug', 's'], log)
+        assert xyz_scale == 1.
+        assert np.allclose(mass_scale, 1. / 32.174), 'mass_scale=%s expected=%s' % (mass_scale, 1/32.174)
+        assert time_scale == 1.
+        assert np.allclose(weight_scale, 1.), 'weight_scale=%s expected=%s' % (weight_scale, 1.)
+        assert gravity_scale == 1/32.174, 'gravity_scale=%s expected=%s' % (gravity_scale, 1./32.174)
+        wtmass = 1. / 32.174
+        wtmass_expected = 1.
+        assert allclose(wtmass/gravity_scale, wtmass_expected), 'wtmass=%s wtmass_expected=%s' % (wtmass, wtmass_expected)
 
     def test_convert_01(self):
         """converts the CONM2s units"""

@@ -582,6 +582,7 @@ class PCOMP(CompositeShellProperty):
         1: 'pid', 2: 'z0', 3:'nsm', 4:'sb', 5:'ft', 6:'tref',
         7: 'ge', 8:'lam',
     }
+    _properties = ['_field_map', 'plies', 'nplies', 'material_ids']
     def update_by_pname_fid(self, pname_fid, value):
         if isinstance(pname_fid, int):
             self._update_field_helper(pname_fid, value)
@@ -642,6 +643,15 @@ class PCOMP(CompositeShellProperty):
 
         # ply = [mid, t, theta, sout]
         ply[slot] = value
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mids = [1]
+        thicknesses = [1.]
+        return PCOMP(pid, mids, thicknesses,
+                     thetas=None, souts=None, nsm=0., sb=0., ft=None,
+                     tref=0., ge=0., lam=None, z0=None, comment='')
 
     def __init__(self, pid,
                  mids, thicknesses, thetas=None, souts=None,
@@ -977,6 +987,7 @@ class PCOMPG(CompositeShellProperty):
         1: 'pid', 2: 'z0', 3:'nsm', 4:'sb', 5:'ft', 6:'tref',
         7: 'ge', 8:'lam',
     }
+    _properties = ['_field_map', 'plies', 'nplies', 'material_ids']
 
     def _update_field_helper(self, n, value):
         nnew = n - 9
@@ -1003,6 +1014,16 @@ class PCOMPG(CompositeShellProperty):
                                                       self.global_ply_ids):
             plies.append((mid, t, theta, sout, global_ply_id))
         return plies
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        global_ply_ids = [1]
+        mids = [1]
+        thicknesses = [1.]
+        return PCOMPG(pid, global_ply_ids, mids, thicknesses,
+                      thetas=None, souts=None, nsm=0.0, sb=0.0, ft=None,
+                      tref=0.0, ge=0.0, lam=None, z0=None, comment='')
 
     def __init__(self, pid, global_ply_ids, mids, thicknesses, thetas=None, souts=None,
                  nsm=0.0, sb=0.0, ft=None, tref=0.0, ge=0.0, lam=None, z0=None, comment=''):
@@ -1288,6 +1309,12 @@ class PLPLANE(ShellProperty):
     type = 'PLPLANE'
     _field_map = {1: 'pid', 2:'mid', 6:'cid', 7:'str'}
 
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        return PLPLANE(pid, mid, cid=0, stress_strain_output_location='GRID', comment='')
+
     def __init__(self, pid, mid, cid=0, stress_strain_output_location='GRID', comment=''):
         """
         Creates a PLPLANE card, which defines the properties of a fully
@@ -1406,6 +1433,12 @@ class PPLANE(ShellProperty):
     type = 'PPLANE'
     _field_map = {1: 'pid', 2:'mid', 3:'t', 4:'nsm', 5:'formulation_option'}
 
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        return PPLANE(pid, mid, t=0., nsm=0., formulation_option=0, comment='')
+
     def __init__(self, pid, mid, t=0., nsm=0., formulation_option=0, comment=''):
         """NX specific card"""
         ShellProperty.__init__(self)
@@ -1503,6 +1536,13 @@ class PSHEAR(ShellProperty):
         # 1 based
         4 : 't', 'T' : 't',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        pid = 1
+        mid = 1
+        t = 0.1
+        return PSHEAR(pid, mid, t, nsm=0., f1=0., f2=0., comment='')
 
     def __init__(self, pid, mid, t, nsm=0., f1=0., f2=0., comment=''):
         """
@@ -1603,6 +1643,9 @@ class PSHEAR(ShellProperty):
         # type: () -> None
         self.mid = self.Mid()
         self.mid_ref = None
+
+    def Thickness(self):
+        return self.t
 
     def Rho(self):
         return self.mid_ref.Rho()
@@ -1759,6 +1802,41 @@ class PSHELL(ShellProperty):
         self.mid2_ref = None
         self.mid3_ref = None
         self.mid4_ref = None
+
+    @classmethod
+    def export_to_hdf5(cls, h5_file, model, pids):
+        """exports the properties in a vectorized way"""
+        comments = []
+        mids = []
+        npids = len(pids)
+        assert npids > 0, pids
+
+        z = np.full((npids, 2), np.nan, dtype=None, order='C')
+        t = np.full(npids, np.nan, dtype=None, order='C')
+        twelveIt3 = []
+        tst = []
+        nsm = []
+        for i, pid in enumerate(pids):
+            prop = model.properties[pid]
+            #comments.append(prop.comment)
+            midsi = [0 if mid is None else mid for mid in
+                     [prop.mid1, prop.mid2, prop.mid3, prop.mid4]]
+            mids.append(list(midsi))
+            z[i, :] = [prop.z1, prop.z2]
+            t[i] = prop.t
+            twelveIt3.append(prop.twelveIt3)
+            tst.append(prop.tst)
+            nsm.append(prop.nsm)
+        #h5_file.create_dataset('_comment', data=comments)
+        h5_file.create_dataset('pid', data=pids)
+        h5_file.create_dataset('mids', data=mids)
+        #print('z =', z)
+        #print('t =', t)
+        h5_file.create_dataset('z', data=z)
+        h5_file.create_dataset('t', data=t)
+        h5_file.create_dataset('twelveIt3', data=twelveIt3)
+        h5_file.create_dataset('tst', data=tst)
+        h5_file.create_dataset('nsm', data=nsm)
 
     @classmethod
     def add_card(cls, card, comment=''):

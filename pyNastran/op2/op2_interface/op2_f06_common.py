@@ -209,6 +209,7 @@ class OP2_F06_Common(object):
         self.case_control_deck = CaseControlDeck([], log=self.log)
         self.labels = {}
         self.expected_times = {}
+        self.params = {}
 
         self.make_geom = False
 
@@ -813,6 +814,9 @@ class OP2_F06_Common(object):
         ]
 
         table_types += [
+            # PVT0
+            'params',
+
             # LAMA
             'eigenvalues',
 
@@ -1045,9 +1049,19 @@ class OP2_F06_Common(object):
             msg += self.grid_point_weight.get_stats(short=short)
 
         table_types = self._get_table_types_testing()
+        def _write_params(params):
+            msg = []
+            for key, param in sorted(params.items()):
+                msg.append('PARAM[%s] = %s\n' % (key, param.values))
+            return msg
+
         if short:
             no_data_classes = ['RealEigenvalues', 'ComplexEigenvalues', 'BucklingEigenvalues']
             for table_type in table_types:
+                if table_type in ['params']:
+                    msg.extend(_write_params(self.params))
+                    continue
+
                 table = self.get_result(table_type)
                 for isubcase, subcase in sorted(table.items(), key=compare):
                     class_name = subcase.__class__.__name__
@@ -1061,6 +1075,8 @@ class OP2_F06_Common(object):
                         #msg.append('%s[%s]; %s; %s; [%s]\n' % (
                         #table_type, isubcase, class_name, shape, headers_str))
                         msg.append('%s[%s]\n' % (table_type, isubcase))
+                    elif table_type == 'params':
+                        msgi = str(subcase)
                     elif hasattr(subcase, 'get_stats'):
                         msgi = '%s[%s] # unvectorized\n' % (table_type, isubcase)
                         msg.append(msgi)
@@ -1071,6 +1087,9 @@ class OP2_F06_Common(object):
         else:
             for table_type in table_types:
                 table = self.get_result(table_type)
+                if table_type in ['params']:
+                    msg.extend(_write_params(self.params))
+                    continue
                 try:
                     for isubcase, subcase in sorted(table.items(), key=compare):
                         class_name = subcase.__class__.__name__

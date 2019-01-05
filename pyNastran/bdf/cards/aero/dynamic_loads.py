@@ -21,7 +21,7 @@ from pyNastran.utils.numpy_utils import integer_types
 from pyNastran.bdf.field_writer_8 import set_blank_if_default, print_card_8
 from pyNastran.bdf.field_writer_16 import print_card_16
 from pyNastran.bdf.cards.base_card import BaseCard
-from pyNastran.utils.atmosphere import make_flfacts_alt_sweep, make_flfacts_mach_sweep
+from pyNastran.utils.atmosphere import make_flfacts_alt_sweep, make_flfacts_mach_sweep, atm_density, _velocity_factor
 from pyNastran.bdf.bdf_interface.assign_type import (
     integer, integer_or_blank, double, double_or_blank, string,
     fields, string_or_blank, double_string_or_blank, interpret_value)
@@ -101,10 +101,19 @@ class AERO(Aero):
     +------+-------+----------+------+--------+-------+-------+
     """
     type = 'AERO'
+    _properties = ['is_anti_symmetric_xy', 'is_anti_symmetric_xz',
+                   'is_symmetric_xy', 'is_symmetric_xz']
     _field_map = {
         1: 'acsid', 2:'velocity', 3:'cRef', 4:'rhoRef', 5:'symXZ',
         6:'symXY',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        velocity = 1.
+        cref = 1.
+        rho_ref = 1.
+        return AERO(velocity, cref, rho_ref, acsid=0, sym_xz=0, sym_xy=0, comment='')
 
     def __init__(self, velocity, cref, rho_ref, acsid=0, sym_xz=0, sym_xy=0, comment=''):
         """
@@ -324,6 +333,12 @@ class FLFACT(BaseCard):
     """
     type = 'FLFACT'
 
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        factors = [1.]
+        return FLFACT(sid, factors, comment='')
+
     def __init__(self, sid, factors, comment=''):
         """
         Creates an FLFACT card, which defines factors used for flutter
@@ -476,6 +491,18 @@ class FLUTTER(BaseCard):
         1: 'sid', 2:'method', 3:'density', 4:'mach', 5:'reduced_freq_velocity', 6:'imethod',
         8:'epsilon',
     }
+    _properties = ['_field_map', 'headers', ]
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        method = 'PKNL'
+        density = 1
+        mach = 1
+        reduced_freq_velocity = 1
+        return FLUTTER(sid, method, density, mach, reduced_freq_velocity,
+                       imethod='L', nvalue=None, omax=None, epsilon=1.0e-3, comment='')
+
     def _get_field_helper(self, n):
         """
         Gets complicated parameters on the FLUTTER card
@@ -650,12 +677,14 @@ class FLUTTER(BaseCard):
                        imethod=imethod, nvalue=nvalue, omax=omax,
                        epsilon=epsilon, comment=comment)
 
-    def make_flfacts_alt_sweep(self, mach, alts, eas_limit=1000.,
+    def make_flfacts_alt_sweep(self, model, mach, alts, eas_limit=1000.,
                                alt_units='m',
                                velocity_units='m/s',
                                density_units='kg/m^3',
                                eas_units='m/s'):
         """makes an altitude sweep"""
+        alts.sort()
+        alts = alts[::-1]
         rho, mach, velocity = make_flfacts_alt_sweep(
             mach, alts, eas_limit=eas_limit,
             alt_units=alt_units,
@@ -665,27 +694,72 @@ class FLUTTER(BaseCard):
         flfact_rho = self.sid + 1
         flfact_mach = self.sid + 2
         flfact_velocity = self.sid + 3
-        model.add_flfact(flfact_rho, rho, msg=' ' + density_units)
-        model.add_flfact(flfact_mach, mach)
-        model.add_flfact(flfact_velocity, velocity, msg=' ' + velocity_units)
+        flfact_eas = self.sid + 4
+        flfact_alt = self.sid + 5
 
-    def make_flfacts_mach_sweep(self, alt, machs, eas_limit=1000., alt_units='m',
+        alts2 = alts[:len(rho)]
+        assert len(rho) == len(alts2)
+        model.add_flfact(flfact_rho, rho,
+                         comment=' density: min=%.3e max=%.3e %s; alt min=%.0f max=%.0f %s' % (
+                             rho.min(), rho.max(), density_units,
+                             alts2.min(), alts2.max(), alt_units,
+        ))
+        model.add_flfact(flfact_mach, mach, comment=' Mach: %s' % mach.min())
+        model.add_flfact(flfact_velocity, velocity, comment=' velocity: min=%.3f max=%.3f %s' % (
+            velocity.min(), velocity.max(), velocity_units))
+
+        # eas in velocity units
+        rho0 = atm_density(0., alt_units=alt_units, density_units=density_units)
+        eas = velocity * np.sqrt(rho / rho0)
+        kvel = _velocity_factor(velocity_units, eas_units)
+
+        eas_in_eas_units = eas * kvel
+        model.add_flfact(flfact_eas, eas_in_eas_units, comment=' EAS: min=%.3f max=%.3f %s' % (
+            eas_in_eas_units.min(), eas_in_eas_units.max(), eas_units))
+
+        model.add_flfact(flfact_alt, alts2, comment=' Alt: min=%.3f max=%.3f %s' % (
+            alts2.min(), alts2.max(), alt_units,))
+
+    def make_flfacts_mach_sweep(self, model, alt, machs, eas_limit=1000., alt_units='m',
                                 velocity_units='m/s',
                                 density_units='kg/m^3',
                                 eas_units='m/s'):
         """makes a mach sweep"""
+        machs.sort()
+        machs = machs[::-1]
         rho, mach, velocity = make_flfacts_mach_sweep(
             alt, machs, eas_limit=eas_limit,
             alt_units=alt_units,
             velocity_units=velocity_units,
             density_units=density_units,
             eas_units=eas_units)
+
+        machs2 = machs[:len(rho)]
+        assert len(rho) == len(machs2)
+
         flfact_rho = self.sid + 1
         flfact_mach = self.sid + 2
         flfact_velocity = self.sid + 3
-        model.add_flfact(flfact_rho, rho, msg=' ' + density_units)
-        model.add_flfact(flfact_mach, mach)
-        model.add_flfact(flfact_velocity, velocity, msg=' ' + velocity_units)
+        flfact_eas = self.sid + 4
+
+        model.add_flfact(flfact_rho, rho,
+                         comment=' density: min=%.3e max=%.3e %s; alt %.0f %s' % (
+                             rho.min(), rho.max(), density_units,
+                             alt, alt_units,
+        ))
+        model.add_flfact(flfact_mach, mach, comment=' Mach: min=%s max=%s' % (
+            mach.min(), mach.max()))
+        model.add_flfact(flfact_velocity, velocity, comment=' velocity: min=%.3f max=%.3f %s' % (
+            velocity.min(), velocity.max(), velocity_units))
+
+        # eas in velocity units
+        rho0 = atm_density(0., alt_units=alt_units, density_units=density_units)
+        eas = velocity * np.sqrt(rho / rho0)
+        kvel = _velocity_factor(velocity_units, eas_units)
+
+        eas_in_eas_units = eas * kvel
+        model.add_flfact(flfact_eas, eas_in_eas_units, comment=' EAS: min=%.3f max=%.3f %s' % (
+            eas_in_eas_units.min(), eas_in_eas_units.max(), eas_units))
 
     @property
     def headers(self):
@@ -771,19 +845,21 @@ class FLUTTER(BaseCard):
     def _get_raw_nvalue_omax(self):
         if self.method in ['K', 'KE']:
             #assert self.imethod in ['L', 'S'], 'imethod = %s' % self.imethod
-            return(self.imethod, self.nvalue)
+            return self.imethod, self.nvalue
         elif self.method in ['PKS', 'PKNLS']:
-            return(self.imethod, self.omax)
-        return(self.imethod, self.nvalue)
+            return self.imethod, self.omax
+        # PK, PKNL
+        return self.imethod, self.nvalue
 
     def _get_repr_nvalue_omax(self):
         if self.method in ['K', 'KE']:
             imethod = set_blank_if_default(self.imethod, 'L')
             #assert self.imethod in ['L', 'S'], 'imethod = %s' % self.imethods
-            return (imethod, self.nvalue)
+            return imethod, self.nvalue
         elif self.method in ['PKS', 'PKNLS']:
-            return(self.imethod, self.omax)
-        return(self.imethod, self.nvalue)
+            return self.imethod, self.omax
+        # PK, PKNL
+        return self.imethod, self.nvalue
 
     def raw_fields(self):
         """
@@ -829,6 +905,14 @@ class GUST(BaseCard):
     _field_map = {
         1: 'sid', 2:'dload', 3:'wg', 4:'x0', 5:'V',
     }
+
+    @classmethod
+    def _init_from_empty(cls):
+        sid = 1
+        dload = 1
+        wg = 1.
+        x0 = 0.
+        return GUST(sid, dload, wg, x0, V=None, comment='')
 
     def __init__(self, sid, dload, wg, x0, V=None, comment=''):
         """
@@ -940,6 +1024,12 @@ class MKAERO1(BaseCard):
     +---------+----+----+----+----+----+----+----+----+
     """
     type = 'MKAERO1'
+
+    @classmethod
+    def _init_from_empty(cls):
+        machs = [1.]
+        reduced_freqs = [1.]
+        return MKAERO1(machs, reduced_freqs, comment='')
 
     def __init__(self, machs, reduced_freqs, comment=''):
         """
@@ -1086,6 +1176,12 @@ class MKAERO2(BaseCard):
     +---------+----+----+----+----+----+----+----+----+
     """
     type = 'MKAERO2'
+
+    @classmethod
+    def _init_from_empty(cls):
+        machs = [1.]
+        reduced_freqs = [1.]
+        return MKAERO2(machs, reduced_freqs, comment='')
 
     def __init__(self, machs, reduced_freqs, comment=''):
         """

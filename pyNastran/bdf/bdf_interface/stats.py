@@ -1,4 +1,4 @@
-def get_bdf_stats(model, return_type='string'):
+def get_bdf_stats(model, return_type='string', word=''):
     # type: (str) -> Union[str, List[str]]
     """
     Print statistics for the BDF
@@ -9,6 +9,8 @@ def get_bdf_stats(model, return_type='string'):
         the output type ('list', 'string')
             'list' : list of strings
             'string' : single, joined string
+    word : str; default=''
+        model flag
 
     Returns
     -------
@@ -22,19 +24,30 @@ def get_bdf_stats(model, return_type='string'):
 
     """
     card_dict_groups = [
-        'params', 'nodes', 'points', 'elements', 'normals', 'rigid_elements',
-        'properties', 'materials', 'creep_materials',
+        'params', 'nodes', 'spoints', 'epoints', 'points', 'gridb',
+
+        'elements', 'ao_element_flags', 'normals', 'rigid_elements', 'plotels',
+
+        'properties', 'pbusht', 'pdampt', 'pelast',
+        'properties_mass', 'masses',
+
+        'materials', 'creep_materials', 'hyperelastic_materials',
         'MATT1', 'MATT2', 'MATT3', 'MATT4', 'MATT5', 'MATT8', 'MATT9',
-        'MATS1', 'MATS3', 'MATT8',
+        'MATS1', 'MATS3', 'MATS8', 'MATT8',
         'coords', 'mpcs',
 
+        # axisysmmetric
+
         # dynamic cards
-        'dareas', 'dphases', 'nlparms', 'nlpcis', 'tsteps', 'tstepnls',
+        'dareas', 'delays', 'dphases', 'nlparms', 'nlpcis',
+        'tsteps', 'tstepnls',
         'rotors',
 
         # direct matrix input - DMIG - dict
         'dmis', 'dmigs', 'dmijs', 'dmijis', 'dmiks',
         'dequations',
+        'transfer_functions',
+        'tics',
 
         # frequencies - dict[List[FREQ]]
         'frequencies',
@@ -45,23 +58,83 @@ def get_bdf_stats(model, return_type='string'):
 
         # SESETx - dict
         'suport1',
-        'se_sets',
-        'se_usets',
 
         # tables
-        'tables', 'tables_d', 'tables_m', 'random_tables',
+        'tables', 'tables_d', 'tables_m', 'random_tables', 'tables_sdamping',
 
         # methods
         'methods', 'cMethods',
 
         # aero
         'caeros', 'paeros', 'aecomps', 'aefacts', 'aelinks',
-        'aelists', 'aeparams', 'aesurfs', 'aestats', 'gusts', 'flfacts',
-        'flutters', 'splines', 'trims',
+        'aelists', 'aeparams', 'aesurf', 'aesurfs', 'aestats', 'gusts', 'flfacts',
+        'flutters', 'splines', 'trims', 'divergs', 'csschds',
 
         # thermal
         'bcs', 'thermal_materials', 'phbdys', 'views', 'view3ds',
-        'convection_properties', ]
+        'convection_properties',
+
+        # contact
+        'bsurf', 'bsurfs', 'blseg',
+        'bconp', 'bcrparas', 'bctadds', 'bctparas', 'bctsets',
+
+        # sets
+        'sets', 'usets',
+
+        # superelements
+        'csuper', 'csupext',
+        'sebulk', 'sebndry', 'seconct', 'seelt', 'seexcld',
+        'selabel', 'seloc', 'seload', 'sempln', 'senqset',
+        'setree',
+        'se_sets', 'se_usets',
+
+        # ???
+        'dscreen', 'dti', 'nxstrats', 'radcavs', 'radmtx', 'ringaxs', 'ringfl',
+        'tempds', 'spcoffs',
+    ]
+    scalar_attrs = [
+        'aero', 'aeros', 'grdset', # handled below
+
+        # not handled
+        'axic', 'axif',
+        'baror', 'beamor', 'doptprm', 'dtable',
+        'zona',
+    ]
+
+    list_attrs = [
+        'asets', 'bsets', 'csets', 'omits', 'qsets',
+        'se_bsets', 'se_csets', 'se_qsets',
+        'suport', 'se_suport',
+        'monitor_points',
+    ]
+    skip_attrs = [
+        'active_filename', 'active_filenames', 'debug', 'log', 'reject_lines',
+        'is_nx', 'is_msc', 'is_bdf_vectorized', 'dumplines', 'values_to_skip',
+        'system_command_lines', 'executive_control_lines', 'case_control_lines',
+        'case_control_deck',
+        'is_superelements', 'special_cards', 'units',
+        'sol', 'sol_iline', 'sol_method', 'cards_to_read', 'card_count',
+        'superelement_models', 'wtmass', 'echo', 'force_echo_off',
+        'read_includes', 'reject_cards', 'reject_count', 'punch',
+        'include_dir', 'include_filenames', 'save_file_structure',
+        'rsolmap_to_str', 'nastran_format', 'nid_map', 'bdf_filename',
+        'radset', 'is_zona',
+
+        # handled below
+        'mpcadds', 'mpcs', 'spcadds', 'spcs',
+        'loads', 'load_combinations',
+        'dloads', 'dload_entries',
+        'aero', 'aeros', 'mkaeros',
+        'nsmadds', 'nsms',
+        'seqgp',
+    ] + list_attrs + card_dict_groups + scalar_attrs
+    #missed_attrs = []
+    #for attr in model.object_attributes():
+        #if attr in skip_attrs:
+            #continue
+        #missed_attrs.append(attr)
+    #assert missed_attrs == [], missed_attrs
+
 
     # These are ignored because they're lists
     #ignored_types = set([
@@ -99,9 +172,10 @@ def get_bdf_stats(model, return_type='string'):
     #unsupported_types = ignored_types.union(ignored_types2)
     #all_params = object_attributes(model, keys_to_skip=unsupported_types)
 
-    msg = ['---BDF Statistics---']
+    msg = ['---BDF Statistics%s---' % word]
     # sol
-    msg.append('SOL %s\n' % model.sol)
+    if 'Superelement' not in word:
+        msg.append('SOL %s\n' % model.sol)
     msg.extend(_get_bdf_stats_loads(model))
 
     # dloads
@@ -161,9 +235,28 @@ def get_bdf_stats(model, return_type='string'):
             msg.append('  %-8s %s' % (name + ':', count_name))
         msg.append('')
 
+    # nsms
+    for (nsm_id, nsmadds) in sorted(model.nsmadds.items()):
+        msg.append('bdf.nsmadds[%s]' % nsm_id)
+        groups_dict = {}
+        for nsmadd in nsmadds:
+            groups_dict[nsmadd.type] = groups_dict.get(nsmadd.type, 0) + 1
+        for name, count_name in sorted(groups_dict.items()):
+            msg.append('  %-8s %s' % (name + ':', count_name))
+        msg.append('')
+
+    for (mpc_id, nsms) in sorted(model.nsms.items()):
+        msg.append('bdf.nsms[%s]' % mpc_id)
+        groups_dict = {}
+        for nsm in nsms:
+            groups_dict[nsm.type] = groups_dict.get(nsm.type, 0) + 1
+        for name, count_name in sorted(groups_dict.items()):
+            msg.append('  %-8s %s' % (name + ':', count_name))
+        msg.append('')
+
     # aero
     if model.aero:
-        msg.append('bdf:aero')
+        msg.append('bdf.aero')
         msg.append('  %-8s 1' % ('AERO:'))
 
     # aeros
@@ -215,9 +308,15 @@ def get_bdf_stats(model, return_type='string'):
                 ncards = model.card_count[card_name]
                 group_msg.append('  %-8s : %s' % (card_name, ncards))
             except KeyError:
-                if card_name == 'CORD2R':
+                # we get in here because we used add_grid or similar method, which
+                # doesn't increase the card_count, so instead we'll use _type_to_id_map
+                counter = '???'
+                if card_name in model._type_to_id_map:
+                    counter = len(model._type_to_id_map[card_name])
+                if card_name == 'CORD2R' and counter == '???':
+                    # there is always 1 CORD2R that isn't added to card_count/_type_to_id_map
                     continue
-                group_msg.append('  %-8s : ???' % card_name)
+                group_msg.append('  %-8s : %s' % (card_name, counter))
                 #assert card_name == 'CORD2R', model.card_count
         if group_msg:
             msg.append('bdf.%s' % card_group_name)
@@ -230,6 +329,10 @@ def get_bdf_stats(model, return_type='string'):
             if name not in model.cards_to_read:
                 msg.append('  %-8s %s' % (name + ':', counter))
     msg.append('')
+
+    for super_id, superelement in model.superelement_models.items():
+        msg += get_bdf_stats(superelement, return_type='list', word=' (Superelement %i)' % super_id)
+
     if return_type == 'string':
         return '\n'.join(msg)
     return msg

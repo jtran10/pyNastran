@@ -23,12 +23,15 @@ from pyNastran.gui.qt_files.load_actions import LoadActions
 from pyNastran.gui.qt_files.mark_actions import MarkActions
 
 from pyNastran.gui.menus.legend.legend_object import LegendObject
+from pyNastran.gui.menus.highlight.highlight_object import HighlightObject
 from pyNastran.gui.menus.preferences.preferences_object import PreferencesObject
 from pyNastran.gui.menus.cutting_plane.cutting_plane_object import CuttingPlaneObject
 from pyNastran.gui.menus.clipping.clipping_object import ClippingObject
 from pyNastran.gui.menus.camera.camera_object import CameraObject
 from pyNastran.gui.menus.edit_geometry_properties.edit_geometry_properties_object import (
     EditGeometryPropertiesObject)
+from pyNastran.gui.menus.cutting_plane.cutting_plane_object import CuttingPlaneObject
+from pyNastran.gui.menus.cutting_plane.shear_moment_torque_object import ShearMomentTorqueObject
 
 from pyNastran.gui.utils.vtk.vtk_utils import (
     numpy_to_vtk_points, create_vtk_cells_of_constant_element_type)
@@ -48,6 +51,8 @@ class GuiAttributes(object):
         inputs = kwds['inputs']
         res_widget = kwds['res_widget']
         self.dev = False
+        self.log = None # it hasn't been initialized yet
+        self.log_widget = None
         self._log_messages = []
         self._performance_mode = False
         #self.performance_mode = True
@@ -63,11 +68,13 @@ class GuiAttributes(object):
         self.mark_actions = MarkActions(self)
 
         self.legend_obj = LegendObject(self)
-        self.edit_geometry_properties_obj = EditGeometryPropertiesObject(self)
+        self.camera_obj = CameraObject(self)
+        self.clipping_obj = ClippingObject(self)
+        self.highlight_obj = HighlightObject(self)
         self.preferences_obj = PreferencesObject(self)
         self.cutting_plane_obj = CuttingPlaneObject(self)
-        self.clipping_obj = ClippingObject(self)
-        self.camera_obj = CameraObject(self)
+        self.shear_moment_torque_obj = ShearMomentTorqueObject(self)
+        self.edit_geometry_properties_obj = EditGeometryPropertiesObject(self)
 
         self.glyph_scale_factor = 1.0
         self.html_logging = False
@@ -77,6 +84,7 @@ class GuiAttributes(object):
         # for a Nastran ElementID/PropertyID, this is 'element'
         self.result_location = None
 
+        self.obj_names = []
         self.case_keys = []
         self.res_widget = res_widget
         self._show_flag = True
@@ -86,6 +94,8 @@ class GuiAttributes(object):
             self.is_testing_flag = inputs['test']
         else:
             self.is_testing_flag = False
+
+        # just initializing the variable
         self.is_groups = False
         self._logo = None
         self._script_path = None
@@ -274,6 +284,14 @@ class GuiAttributes(object):
 
     #-------------------------------------------------------------------
     # geom
+    def clear_actor(self, actor_name):
+        if actor_name in self.gui.alt_grids:
+            del self.alt_grids[actor_name]
+        if actor_name in self.geometry_actors:
+            actor = self.geometry_actors[actor_name]
+            self.rend.RemoveActor(actor)
+            del self.geometry_actors[actor_name]
+
     @property
     def grid(self):
         """gets the active grid"""
@@ -356,16 +374,43 @@ class GuiAttributes(object):
         self.eid_maps[self.name] = eid_map
 
     #-------------------------------------------------------------------
-    def set_quad_grid(self, name, nodes, elements, color, line_width=5, opacity=1.):
+    def set_point_grid(self, name, nodes, elements, color,
+                       point_size=5, opacity=1., add=True):
+        """
+        Makes a POINT grid
+        """
+        self.create_alternate_vtk_grid(name, color=color, point_size=point_size,
+                                       opacity=opacity, representation='point')
+
+        nnodes = nodes.shape[0]
+        if nnodes == 0:
+            return
+
+        assert isinstance(nodes, np.ndarray), type(nodes)
+
+        points = numpy_to_vtk_points(nodes)
+        grid = self.alt_grids[name]
+        grid.SetPoints(points)
+
+        etype = 9  # vtk.vtkQuad().GetCellType()
+        create_vtk_cells_of_constant_element_type(grid, elements, etype)
+
+        if add:
+            self._add_alt_actors({name : self.alt_grids[name]})
+
+            #if name in self.geometry_actors:
+            self.geometry_actors[name].Modified()
+
+    def set_quad_grid(self, name, nodes, elements, color,
+                      line_width=5, opacity=1., representation='wire', add=True):
         """
         Makes a CQUAD4 grid
         """
         self.create_alternate_vtk_grid(name, color=color, line_width=line_width,
-                                       opacity=opacity, representation='wire')
+                                       opacity=opacity, representation=representation)
 
         nnodes = nodes.shape[0]
         nquads = elements.shape[0]
-        #print(nodes)
         if nnodes == 0:
             return
         if nquads == 0:
@@ -381,9 +426,10 @@ class GuiAttributes(object):
         etype = 9  # vtk.vtkQuad().GetCellType()
         create_vtk_cells_of_constant_element_type(grid, elements, etype)
 
-        self._add_alt_actors({name : self.alt_grids[name]})
+        if add:
+            self._add_alt_actors({name : self.alt_grids[name]})
 
-        #if name in self.geometry_actors:
+            #if name in self.geometry_actors:
         self.geometry_actors[name].Modified()
 
     def _add_alt_actors(self, grids_dict, names_to_ignore=None):
@@ -400,7 +446,6 @@ class GuiAttributes(object):
         #print('names_old2 =', names_old)
         #print('names =', names)
         for name in names:
-            #print('adding %s' % name)
             grid = grids_dict[name]
             self.tool_actions._add_alt_geometry(grid, name)
 
@@ -490,8 +535,8 @@ class GuiAttributes(object):
                         self.log.warning(msg)
 
             skip_reading = False
-        #self.scalarBar.VisibilityOff()
-        self.scalarBar.Modified()
+        #self.scalar_bar_actor.VisibilityOff()
+        self.scalar_bar_actor.Modified()
         return skip_reading
 
     #---------------------------------------------------------------------------
@@ -973,6 +1018,7 @@ class GuiAttributes(object):
 
     @start_stop_performance_mode
     def load_batch_inputs(self, inputs):
+        print('load_batch_inputs', inputs)
         geom_script = inputs['geomscript']
         if geom_script is not None:
             self.on_run_script(geom_script)
@@ -990,7 +1036,7 @@ class GuiAttributes(object):
         if input_filenames is not None:
             for input_filename in input_filenames:
                 if not os.path.exists(input_filename):
-                    msg = '%s does not exist\n%s' % (
+                    msg = 'input filename: %s does not exist\n%s' % (
                         input_filename, print_bad_path(input_filename))
                     self.log.error(msg)
                     if self.html_logging:
@@ -1009,6 +1055,7 @@ class GuiAttributes(object):
 
         #unused_is_geom_results = input_filename == results_filename and len(input_filenames) == 1
         unused_is_geom_results = False
+        is_failed = False
         for i, input_filename in enumerate(input_filenames):
             if i == 0:
                 name = 'main'
@@ -1081,12 +1128,15 @@ class GuiAttributes(object):
 
         self.legend_obj.set_font_size(font_size)
         self.camera_obj.set_font_size(font_size)
-        self.edit_geometry_properties_obj.set_font_size(font_size)
+        self.highlight_obj.set_font_size(font_size)
         self.clipping_obj.set_font_size(font_size)
         if self._modify_groups_window_shown:
             self._modify_groups_window.set_font_size(font_size)
         self.preferences_obj.set_font_size(font_size)
         self.cutting_plane_obj.set_font_size(font_size)
+        self.shear_moment_torque_obj.set_font_size(font_size)
+        self.edit_geometry_properties_obj.set_font_size(font_size)
+
 
         #self.menu_scripts.setFont(font)
         self.log_command('settings.on_set_font_size(%s)' % font_size)
@@ -1464,17 +1514,30 @@ class GuiAttributes(object):
         return self.vtk_interactor.GetRenderWindow()
 
     #------------------------------
-    def get_element_ids(self, name=None, ids=None):
+    def get_xyz_cid0(self, model_name=None):
+        xyz = self.xyz_cid0
+        return xyz
+
+    def get_element_ids(self, model_name=None, ids=None):
         """wrapper around element_ids"""
         if ids is None:
             return self.element_ids
         return self.element_ids[ids]
 
-    def get_node_ids(self, name=None, ids=None):
+    def get_node_ids(self, model_name=None, ids=None):
         """wrapper around node_ids"""
         if ids is None:
             return self.node_ids
         return self.node_ids[ids]
+
+    def get_reverse_node_ids(self, model_name=None, ids=None):
+        """wrapper around node_ids"""
+        if ids is None:
+            return np.array([])
+        # include all but the indicies sepecified
+        include_ids = np.ones(self.node_ids.shape, dtype=self.node_ids.dtype)
+        include_ids[ids] = 0
+        return self.node_ids[include_ids]
 
     #------------------------------
     # these are overwritten

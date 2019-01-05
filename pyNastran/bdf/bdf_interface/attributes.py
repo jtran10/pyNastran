@@ -23,8 +23,9 @@ class BDFAttributes(object):
         self.is_nx = False
         self.is_msc = False
         self.is_zona = False
+        self.save_file_structure = False
+        self.is_superelements = False
         self.set_as_msc()
-
         self.units = []  # type: List[str]
 
     def set_as_msc(self):
@@ -44,6 +45,14 @@ class BDFAttributes(object):
         self.is_nx = False
         self.is_msc = False
         self.is_zona = True
+
+    def __properties__(self):
+        """the list of @property attributes"""
+        return ['nastran_format', 'is_long_ids', 'sol', 'subcases',
+                'nnodes', 'node_ids', 'point_ids',
+                'nelements', 'element_ids', 'nproperties', 'property_ids',
+                'nmaterials', 'material_ids', 'ncoords', 'coord_ids',
+                'ncaeros', 'caero_ids', 'wtmass', 'is_bdf_vectorized', 'nid_map']
 
     def object_attributes(self, mode='public', keys_to_skip=None):
         # type: (str, Optional[List[str]]) -> List[str]
@@ -80,7 +89,7 @@ class BDFAttributes(object):
             'nmaterials', 'ncaeros',
 
             'point_ids', 'subcases',
-            '_card_parser', '_card_parser_b',
+            '_card_parser', '_card_parser_b', '_card_parser_prepare',
             'object_methods', 'object_attributes',
         ]
         return object_attributes(self, mode=mode, keys_to_skip=keys_to_skip+my_keys_to_skip)
@@ -174,6 +183,10 @@ class BDFAttributes(object):
 
         #: list of case control deck lines
         self.case_control_lines = []  # type: List[str]
+
+        # dictionary of BDFs
+        self.superelement_models = {}
+        self.initial_superelement_models = []  # the keys before superelement mirroring
 
         self._auto_reject = False
         self._solmap_to_value = {
@@ -591,7 +604,7 @@ class BDFAttributes(object):
         self.sebndry = {}
         self.seloc = {}
         self.sempln = {}
-        self.secontct = {}
+        self.seconct = {}
         self.selabel = {}
         self.seexcld = {}
         self.seelt = {}
@@ -624,7 +637,7 @@ class BDFAttributes(object):
                 'CBUSH', 'CBUSH1D', 'CBUSH2D',
 
                 'CDAMP1', 'CDAMP2', 'CDAMP3', 'CDAMP4', 'CDAMP5',
-                'CFAST',
+                'CFAST', 'GENEL',
 
                 'CBAR', 'CROD', 'CTUBE', 'CBEAM', 'CBEAM3', 'CONROD', 'CBEND',
                 'CTRIA3', 'CTRIA6', 'CTRIAR',
@@ -704,7 +717,7 @@ class BDFAttributes(object):
             'sebndry' : ['SEBNDRY'],
             'seloc' : ['SELOC'],
             'sempln' : ['SEMPLN'],
-            'secontct' : ['SECONTCT'],
+            'seconct' : ['SECONCT'],
             'selabel' : ['SELABEL'],
             'seexcld' : ['SEEXCLD'],
             'seelt' : ['SEELT'],
@@ -749,7 +762,7 @@ class BDFAttributes(object):
             'caeros' : ['CAERO1', 'CAERO2', 'CAERO3', 'CAERO4', 'CAERO5', 'CAERO7', 'BODY7'],
             'paeros' : ['PAERO1', 'PAERO2', 'PAERO3', 'PAERO4', 'PAERO5', 'SEGMESH'],
             'monitor_points' : ['MONPNT1', 'MONPNT2', 'MONPNT3'],
-            'splines' : ['SPLINE1', 'SPLINE2', 'SPLINE4', 'SPLINE5',],
+            'splines' : ['SPLINE1', 'SPLINE2', 'SPLINE3', 'SPLINE4', 'SPLINE5', 'SPLINE6', 'SPLINE7'],
             'panlsts' : ['PANLST1', 'PANLST2', 'PANLST3',],
             'csschds' : ['CSSCHD',],
             #'SPLINE3', 'SPLINE6', 'SPLINE7',
@@ -768,7 +781,7 @@ class BDFAttributes(object):
             'convection_properties' : ['PCONV', 'PCONVM'],
 
             # stores thermal boundary conditions
-            'bcs' : ['CONV', 'RADBC', 'RADM', 'TEMPBC'],
+            'bcs' : ['CONV', 'CONVM', 'RADBC', 'RADM', 'TEMPBC'],
 
 
             # dynamic cards
@@ -833,7 +846,7 @@ class BDFAttributes(object):
             # SEBSEP
 
             'tables' : [
-                'TABLEHT', 'TABRNDG',
+                'TABLEH1', 'TABLEHT',
                 'TABLES1', 'TABLEST',
                 ],
             'tables_d' : ['TABLED1', 'TABLED2', 'TABLED3', 'TABLED4', 'TABLED5'],
@@ -1021,3 +1034,12 @@ class BDFAttributes(object):
             param = self.params['WTMASS']
             wtmass = param.values[0]
         return wtmass
+
+    def set_param(self, key, values):
+        """sets a param card; creates it if necessary"""
+        if isinstance(value, (int, float, str)):
+            values = [values]
+        key = key.upper()
+        if key in self.params:
+            param = self.params[key]
+            param.update_values(self, *values)

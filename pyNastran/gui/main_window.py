@@ -19,7 +19,7 @@ from qtpy import QtCore
 from qtpy.QtWidgets import QMessageBox, qApp
 
 # 3rd party
-import vtk
+import vtk  # if this crashes, make sure you ran setup.py
 
 import pyNastran
 from pyNastran.gui.utils.version import check_for_newer_version
@@ -107,6 +107,7 @@ class MainWindow(GuiCommon2, NastranIO):
             'tecplot',  # results
             'tetgen',
             'usm3d',  # results
+            'avl',
         ]
         #GuiCommon2.__init__(self, fmt_order, html_logging, inputs, parent)
         kwds['inputs'] = inputs
@@ -116,7 +117,7 @@ class MainWindow(GuiCommon2, NastranIO):
         #fmt_order=fmt_order, inputs=inputs,
         #html_logging=html_logging,
 
-        if qt_version in ['pyqt4', 'pyqt5', 'pyside']:
+        if qt_version in ['pyqt4', 'pyqt5', 'pyside', 'pyside2']:
             NastranIO.__init__(self)
         else:
             raise NotImplementedError('qt_version=%r is not supported' % qt_version)
@@ -128,6 +129,7 @@ class MainWindow(GuiCommon2, NastranIO):
         self.set_script_path(SCRIPT_PATH)
         self.set_icon_path(ICON_PATH)
 
+        self.start_logging()
         self._load_plugins()
         self.setup_gui()
         self.setup_post(inputs)
@@ -142,15 +144,17 @@ class MainWindow(GuiCommon2, NastranIO):
                 # auto_wireframe is a test module and is not intended to
                 # actually load unless you're testing
                 if module_name != 'auto_wireframe':
-                    self.log_warning('Failed to load plugin %r' % module_name)
+                    self.log_warning('Failed to load plugin %r because %s doesnt exist' % (
+                        module_name, plugin_file))
                 continue
 
             module = imp.load_source(module_name, plugin_file)
             my_class = getattr(module, class_name)
-            self.modules[module_name] = my_class(self)
+            class_obj = my_class(self)
+            self.modules[module_name] = class_obj
 
             # tools/checkables
-            tools, checkables = my_class.get_tools_checkables()
+            tools, checkables = class_obj.get_tools_checkables()
             self.tools += tools
             for key, is_active in checkables.items():
                 self.checkables[key] = is_active
@@ -203,6 +207,12 @@ class MainWindow(GuiCommon2, NastranIO):
         """loads the pyNastran docs website"""
         import webbrowser
         url = pyNastran.__docs__
+        webbrowser.open(url)
+
+    def open_issue(self):
+        """loads the pyNastran issue tracker"""
+        import webbrowser
+        url = pyNastran.__issue__
         webbrowser.open(url)
 
     def open_discussion_forum(self):

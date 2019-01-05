@@ -19,7 +19,7 @@ from pyNastran.gui.qt_version import qt_version
 from qtpy import QtCore, QtGui #, API
 from qtpy.QtWidgets import (
     QMessageBox, QWidget,
-    QMainWindow, QDockWidget, QFrame, QHBoxLayout, QAction)
+    QMainWindow, QDockWidget, QFrame, QHBoxLayout, QAction, QToolBar, QMenu, QToolButton)
 
 import vtk
 
@@ -93,7 +93,7 @@ class GuiCommon2(QMainWindow, GuiCommon):
             GuiCommon.__init__(self, **kwds)
         elif qt_version == 'pyqt5':
             super(GuiCommon2, self).__init__(**kwds)
-        elif qt_version == 'pyside':
+        elif qt_version in ['pyside', 'pyside2']:
             #super(GuiCommon2, self).__init__(**kwds) # fails
 
             # fails
@@ -177,14 +177,18 @@ class GuiCommon2(QMainWindow, GuiCommon):
 
     @property
     def scalarBar(self):
+        raise RuntimeError('scalarBar has been removed; use scalar_bar_actor')
+        return self.scalar_bar.scalar_bar
+
+    @property
+    def scalar_bar_actor(self):
+        """gets the scalar bar actor"""
         return self.scalar_bar.scalar_bar
 
     @property
     def color_function(self):
+        """gets the scalar bar's color function"""
         return self.scalar_bar.color_function
-
-    #def get_color_function(self):
-        #return self.scalar_bar.color_function
 
     @property
     def logo(self):
@@ -306,7 +310,10 @@ class GuiCommon2(QMainWindow, GuiCommon):
                 'rotation_center' : False,
                 'measure_distance' : False,
                 'probe_result' : False,
+                'highlight_cell' : False,
+                'highlight_node' : False,
                 'area_pick' : False,
+                'highlight' : False,
                 'zoom' : False,
             }
 
@@ -361,6 +368,7 @@ class GuiCommon2(QMainWindow, GuiCommon):
 
                 ('website', 'Open pyNastran Website...', '', None, 'Open the pyNastran website', self.open_website),
                 ('docs', 'Open pyNastran Docs Website...', '', None, 'Open the pyNastran documentation website', self.open_docs),
+                ('report_issue', 'Report a Bug/Feature Request...', '', None, 'Open the pyNastran issue tracker', self.open_issue),
                 ('discussion_forum', 'Discussion Forum Website...', '', None, 'Open the discussion forum to ask questions', self.open_discussion_forum),
                 ('about', 'About pyNastran GUI...', 'tabout.png', 'CTRL+H', 'About pyNastran GUI and help on shortcuts', self.about_dialog),
 
@@ -390,6 +398,8 @@ class GuiCommon2(QMainWindow, GuiCommon):
                 ('rotation_center', 'Set the rotation center', 'trotation_center.png', 'f', 'Pick a node for the rotation center', self.mouse_actions.on_rotation_center),
 
                 ('measure_distance', 'Measure Distance', 'measure_distance.png', None, 'Measure the distance between two nodes', self.mouse_actions.on_measure_distance),
+                ('highlight_cell', 'Highlight Cell', '', None, 'Highlight a single cell', self.mouse_actions.on_highlight_cell),
+                ('highlight_node', 'Highlight Node', '', None, 'Highlight a single node', self.mouse_actions.on_highlight_node),
                 ('probe_result', 'Probe', 'tprobe.png', None, 'Probe the displayed result', self.mouse_actions.on_probe_result),
                 ('quick_probe_result', 'Quick Probe', '', 'p', 'Probe the displayed result', self.mouse_actions.on_quick_probe_result),
                 ('zoom', 'Zoom', 'zoom.png', None, 'Zoom In', self.mouse_actions.on_zoom),
@@ -400,6 +410,8 @@ class GuiCommon2(QMainWindow, GuiCommon):
 
                 # picking
                 ('area_pick', 'Area Pick', 'tarea_pick.png', None, 'Get a list of nodes/elements', self.mouse_actions.on_area_pick),
+                ('highlight', 'Highlight', 'thighlight.png', None, 'Highlight a list of nodes/elements', self.mouse_actions.on_highlight),
+                ('highlight_nodes_elements', 'Highlight', 'thighlight.png', None, 'Highlight a list of nodes/elements', self.highlight_obj.set_highlight_menu),
             ]
 
         if 'nastran' in self.fmts:
@@ -415,18 +427,36 @@ class GuiCommon2(QMainWindow, GuiCommon):
         #print('qkey_event =', qkey_event.key())
         super(GuiCommon2, self).keyPressEvent(qkey_event)
 
-    def _create_menu_items(self, actions=None, create_menu_bar=True):
+    def _create_menu_bar(self, menu_bar_order=None):
+        self.menu_bar_oder = menu_bar_order
+        if menu_bar_order is None:
+            menu_bar_order = ['menu_file', 'menu_view', 'menu_window', 'menu_help']
+
+        for key in menu_bar_order:
+            if key == 'menu_file':
+                self.menu_file = self.menubar.addMenu('&File')
+            elif key == 'menu_view':
+                self.menu_view = self.menubar.addMenu('&View')
+            elif key == 'menu_window':
+                self.menu_window = self.menubar.addMenu('&Window')
+            elif key == 'menu_help':
+                self.menu_help = self.menubar.addMenu('&Help')
+            elif isinstance(key, tuple):
+                attr_name, name = key
+                submenu = self.menubar.addMenu(name)
+                setattr(self, attr_name, submenu)
+            else:
+                raise NotImplementedError(key)
+        # always last
+        self.menu_hidden = self.menubar.addMenu('&Hidden')
+        self.menu_hidden.menuAction().setVisible(False)
+
+    def _create_menu_items(self, actions=None, create_menu_bar=True, menu_bar_order=None):
         if actions is None:
             actions = self.actions
 
         if create_menu_bar:
-            self.menu_file = self.menubar.addMenu('&File')
-            self.menu_view = self.menubar.addMenu('&View')
-            self.menu_window = self.menubar.addMenu('&Window')
-            self.menu_help = self.menubar.addMenu('&Help')
-
-            self.menu_hidden = self.menubar.addMenu('&Hidden')
-            self.menu_hidden.menuAction().setVisible(False)
+            self._create_menu_bar(menu_bar_order=menu_bar_order)
 
         if self._script_path is not None and os.path.exists(self._script_path):
             scripts = [script for script in os.listdir(self._script_path) if '.py' in script]
@@ -460,6 +490,7 @@ class GuiCommon2(QMainWindow, GuiCommon):
         if self.is_groups:
             menu_view += ['modify_groups', 'create_groups_by_property_id',
                           'create_groups_by_visible_result']
+
         menu_view += [
             '', 'clipping', #'axis',
             'edges', 'edges_black',]
@@ -482,19 +513,21 @@ class GuiCommon2(QMainWindow, GuiCommon):
                          'left_view', 'right_view',
                          'magnify', 'shrink', 'zoom',
                          'rotate_clockwise', 'rotate_cclockwise',
-                         'rotation_center', 'measure_distance', 'probe_result', 'area_pick',
+                         'rotation_center', 'measure_distance', 'probe_result',
+                         #'highlight_cell', 'highlight_node',
+                         'area_pick', 'highlight_nodes_elements',
 
                          'wireframe', 'surface', 'edges']
         toolbar_tools += ['camera_reset', 'view', 'screenshot', '', 'exit']
         hidden_tools = ('cycle_results', 'rcycle_results',
-                        'font_size_increase', 'font_size_decrease')
+                        'font_size_increase', 'font_size_decrease', 'highlight')
 
         menu_items = OrderedDict()
         if create_menu_bar:
             menu_items['file'] = (self.menu_file, menu_file)
             menu_items['view'] = (self.menu_view, menu_view)
             menu_items['main'] = (self.menu_window, menu_window)
-            menu_items['help'] = (self.menu_help, ('website', 'docs', 'discussion_forum', 'about',))
+            menu_items['help'] = (self.menu_help, ('website', 'docs', 'report_issue', 'discussion_forum', 'about',))
             menu_items['scripts'] = (self.menu_scripts, scripts)
             menu_items['toolbar'] = (self.toolbar, toolbar_tools)
             menu_items['hidden'] = (self.menu_hidden, hidden_tools)
@@ -516,6 +549,12 @@ class GuiCommon2(QMainWindow, GuiCommon):
         self.menubar = self.menuBar()
 
         actions = self._prepare_actions(self._icon_path, self.tools, self.checkables)
+        action_names = list(self.actions.keys())
+        action_names.sort()
+
+        #print("self.actions =", action_names)
+        #for plugin in self.plugins:
+
         menu_items = self._create_menu_items(actions)
         self._populate_menu(menu_items)
 
@@ -526,32 +565,35 @@ class GuiCommon2(QMainWindow, GuiCommon):
         self.actions['show_error'].setChecked(self.settings.show_error)
 
 
-    def _populate_menu(self, menu_items):
+    def _populate_menu(self, menu_items, actions=None):
         """populate menus and toolbar"""
         assert isinstance(menu_items, dict), menu_items
+
+        if actions is None:
+            actions = self.actions
         for unused_menu_name, (menu, items) in menu_items.items():
             if menu is None:
                 continue
-            for i in items:
-                if not i:
+
+            for item in items:
+                if not item:
                     menu.addSeparator()
                 else:
-                    if isinstance(i, list):
-                        sub_menu_name = i[0]
-                        sub_menu = menu.addMenu(sub_menu_name)
-                        for ii_count, ii in enumerate(i[1:]):
-                            if not isinstance(ii, string_types):
-                                raise RuntimeError('what is this...action ii() = %r' % ii())
-                            action = self.actions[ii]
-                            if ii_count > 0:
-                                action.setChecked(False)
-                            sub_menu.addAction(action)
+                    if isinstance(item, list):
+                        sub_menu_name = item[0]
+
+                        if isinstance(menu, QToolBar):
+                            populate_sub_qtoolbar(menu, item, actions)
+                        elif isinstance(menu, QMenu):
+                            populate_sub_qmenu(menu, item, actions)
+                        else:
+                            raise TypeError(menu)
                         continue
-                    elif not isinstance(i, string_types):
-                        raise RuntimeError('what is this...action i() = %r' % i())
+                    elif not isinstance(item, string_types):
+                        raise RuntimeError('what is this...action item() = %r' % item())
 
                     try:
-                        action = self.actions[i] #if isinstance(i, string_types) else i()
+                        action = self.actions[item] #if isinstance(item, string_types) else item()
                     except:
                         print(self.actions.keys())
                         raise
@@ -615,12 +657,27 @@ class GuiCommon2(QMainWindow, GuiCommon):
         Prepare actions that will  be used in application in a way
         that's independent of the  menus & toolbar
         """
+        self._prepare_actions_helper(icon_path, tools, self.actions,
+                                     checkables=checkables)
+
+        self.actions['toolbar'] = self.toolbar.toggleViewAction()
+        self.actions['toolbar'].setStatusTip("Show/Hide application toolbar")
+
+        self.actions['reswidget'] = self.res_dock.toggleViewAction()
+        self.actions['reswidget'].setStatusTip("Show/Hide results selection")
+        return self.actions
+
+    def _prepare_actions_helper(self, icon_path, tools, actions, checkables=None):
+        """
+        Prepare actions that will  be used in application in a way
+        that's independent of the  menus & toolbar
+        """
         if checkables is None:
             checkables = []
 
         for tool in tools:
             (name, txt, icon, shortcut, tip, func) = tool
-            if name in self.actions:
+            if name in actions:
                 self.log_error('trying to create a duplicate action %r' % name)
                 continue
 
@@ -634,25 +691,18 @@ class GuiCommon2(QMainWindow, GuiCommon):
 
             if name in checkables:
                 is_checked = checkables[name]
-                self.actions[name] = QAction(ico, txt, self, checkable=True)
-                self.actions[name].setChecked(is_checked)
+                actions[name] = QAction(ico, txt, self, checkable=True)
+                actions[name].setChecked(is_checked)
             else:
-                self.actions[name] = QAction(ico, txt, self)
+                actions[name] = QAction(ico, txt, self)
 
             if shortcut:
-                self.actions[name].setShortcut(shortcut)
+                actions[name].setShortcut(shortcut)
                 #actions[name].setShortcutContext(QtCore.Qt.WidgetShortcut)
             if tip:
-                self.actions[name].setStatusTip(tip)
+                actions[name].setStatusTip(tip)
             if func:
-                self.actions[name].triggered.connect(func)
-
-        self.actions['toolbar'] = self.toolbar.toggleViewAction()
-        self.actions['toolbar'].setStatusTip("Show/Hide application toolbar")
-
-        self.actions['reswidget'] = self.res_dock.toggleViewAction()
-        self.actions['reswidget'].setStatusTip("Show/Hide results selection")
-        return self.actions
+                actions[name].triggered.connect(func)
 
     def _logg_msg(self, log_type, filename, lineno, msg):
         """
@@ -717,7 +767,7 @@ class GuiCommon2(QMainWindow, GuiCommon):
                 filename = filename[:-1]
             html_msg = get_html_msg(color, tim, log_type, filename, lineno, msg)
 
-        if self.performance_mode:
+        if self.performance_mode or self.log_widget is None:
             self._log_messages.append(html_msg)
         else:
             self._log_msg(html_msg)
@@ -1048,6 +1098,7 @@ class GuiCommon2(QMainWindow, GuiCommon):
         edge_actor.SetVisibility(self.is_edges)
         self.rend.AddActor(edge_actor)
 
+    #---------------------------------------------------------------------
     def post_group_by_name(self, name):
         """posts a group with a specific name"""
         group = self.groups[name]
@@ -1278,7 +1329,7 @@ class GuiCommon2(QMainWindow, GuiCommon):
         self.update_all(render=render)
 
     def _update_ids_mask(self, ids_to_show, flip_flag=True, show_flag=True, render=True):
-        print('flip_flag=%s show_flag=%s' % (flip_flag, show_flag))
+        #print('flip_flag=%s show_flag=%s' % (flip_flag, show_flag))
 
         ids = numpy_to_vtk_idtype(ids_to_show)
         ids.Modified()
@@ -1412,9 +1463,11 @@ class GuiCommon2(QMainWindow, GuiCommon):
         scalar_range = self.grid_selected.GetScalarRange()
         self.grid_mapper.SetScalarRange(scalar_range)
         self.grid_mapper.SetLookupTable(self.color_function)
-        self.rend.AddActor(self.scalarBar)
+        self.rend.AddActor(self.scalar_bar_actor)
 
     def start_logging(self):
+        if self.log is not None:
+            return
         if self.html_logging is True:
             log = SimpleLogger(
                 'debug', 'utf-8',
@@ -2361,12 +2414,14 @@ class GuiCommon2(QMainWindow, GuiCommon):
         self.icase_fringe = None
         self.set_form(form)
 
-    def _finish_results_io2(self, form, cases, reset_labels=True):
+    def _finish_results_io2(self, model_name, form, cases, reset_labels=True):
         """
         Adds results to the Sidebar
 
         Parameters
         ----------
+        model_name : str
+            the name of the model
         form : List[pairs]
             There are two types of pairs
             header_pair : (str, None, List[pair])
@@ -2430,8 +2485,8 @@ class GuiCommon2(QMainWindow, GuiCommon):
         self.reset_labels(reset_minus1=reset_labels)
         self.cycle_results_explicit()  # start at nCase=0
         if self.ncases:
-            self.scalarBar.VisibilityOn()
-            self.scalarBar.Modified()
+            self.scalar_bar_actor.VisibilityOn()
+            self.scalar_bar_actor.Modified()
 
         #data = [
         #    ('A', []),
@@ -2679,3 +2734,41 @@ def get_html_msg(color, tim, log_type, filename, lineno, msg):
     html_msg = r'<font color="%s"> %s %s : %s:%i</font> %s <br>' % (
         color, tim, log_type, filename, lineno, msg.replace('\n', '<br>'))
     return html_msg
+
+def populate_sub_qmenu(menu, items, actions):
+    sub_menu_name = items[0]
+    sub_menu = menu.addMenu(sub_menu_name)
+    for ii_count, ii in enumerate(items[1:]):
+        if not isinstance(ii, string_types):
+            raise RuntimeError('what is this...action ii() = %r' % ii())
+        action = actions[ii]
+        if ii_count > 0:
+            action.setChecked(False)
+        sub_menu.addAction(action)
+
+def populate_sub_qtoolbar(toolbar, items, actions):
+    """
+    refs
+    https://www.walletfox.com/course/customqtoolbutton.php
+    https://stackoverflow.com/questions/9076332/qt-pyqt-how-do-i-create-a-drop-down-widget-such-as-a-qlabel-qtextbrowser-etc
+    """
+    sub_menu_name = items[0]
+    action0 = actions[sub_menu_name]
+
+    drop_down_menu = QMenu()
+
+    custom_button = QToolButton()
+    custom_button.setPopupMode(QToolButton.InstantPopup)
+    custom_button.setMenu(drop_down_menu)
+    custom_button.setDefaultAction(action0)
+
+    toolbar.addWidget(custom_button)
+
+    for ii_count, itemi in enumerate(items[1:]):
+        if not isinstance(itemi, string_types):
+            raise RuntimeError('what is this...action ii() = %r' % itemi())
+        action = actions[itemi]
+        # temp
+        #if ii_count > 0:
+            #action.setChecked(False)
+        drop_down_menu.addAction(action)  # thrown in the trash?
